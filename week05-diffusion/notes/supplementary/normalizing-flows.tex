@@ -1,0 +1,329 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+% ---- Supplementary-notes additions (after the shared preamble) ----
+\usepackage{microtype}
+\usepackage{soul}
+\sethlcolor{yellow}
+\usepackage[most]{tcolorbox}
+\tcbset{colback=black!3!white, colframe=black!60, boxrule=0.6pt, arc=1.2mm}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\pdv}[2]{\frac{\partial #1}{\partial #2}}
+\setlength\emergencystretch{3em}
+
+\title{Supplementary Notes: Normalizing Flows}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\begin{tcolorbox}[width=0.95\textwidth, title=\textbf{About these supplementary notes}]
+Normalizing flows were covered as a full lecture in the 16-week version of this course. In the 8-week format they are not part of the core Week 5 material and are provided here as optional reading. They are most useful as a companion to the flows-versus-diffusion comparison in the Week 5 lecture notes: flows are the deterministic, exact-likelihood cousins of diffusion models, and the probability flow ODE makes diffusion a special case of the continuous flows described at the end of this document.
+\end{tcolorbox}
+\end{center}
+
+\begin{abstract}
+Normalizing flows are likelihood-based generative models built from invertible, differentiable transformations that map a simple base distribution to a complex data distribution. This note presents the core equations, layer constructions, and training procedures with detailed, step-by-step explanations and a boxed summary of continuous normalizing flows (CNFs).
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+\section{Problem Setup and Goal}
+We observe samples $x \in \R^D$ from an unknown data distribution $p_{\text{data}}(x)$. We choose a \hl{simple, tractable \emph{base} density $p_Z(z)$ (e.g., standard Gaussian) and a bijective, differentiable map}
+\begin{equation}
+f_\theta: \R^D \to \R^D, \qquad x = f_\theta(z), \quad z = f_\theta^{-1}(x).
+\label{eq:flow-map}
+\end{equation}
+Our aim is to model $p_X(x)$ exactly via change of variables:
+\begin{equation}
+p_X(x) = p_Z\!\left(f_\theta^{-1}(x)\right)\, \left|\det J_{f_\theta^{-1}}(x)\right|
+= p_Z(z)\, \left|\det J_{f_\theta}(z)\right|^{-1},
+\label{eq:change-of-variables}
+\end{equation}
+where $J_{f_\theta}$ is the Jacobian of $f_\theta$.
+
+\begin{remark}[Two tractability requirements]
+To evaluate $\log p_X(x)$ in \eqref{eq:change-of-variables}, we need: (i) $f_\theta$ invertible with a cheap inverse, and (ii) a cheap, exact computation of $\log \left|\det J_{f_\theta}(\cdot)\right|$.
+\end{remark}
+
+\paragraph{Training by Maximum Likelihood.}
+Given data $\{x^{(i)}\}_{i=1}^N$, we maximize
+\begin{equation}
+\mathcal{L}(\theta) \;=\; \frac{1}{N}\sum_{i=1}^N \log p_X\!\left(x^{(i)}\right)
+= \frac{1}{N}\sum_{i=1}^N \left[ \log p_Z\!\left(z^{(i)}\right) - \log\left|\det J_{f_\theta}\!\left(z^{(i)}\right)\right| \right],
+\quad z^{(i)}=f_\theta^{-1}\!\left(x^{(i)}\right).
+\label{eq:mle}
+\end{equation}
+
+\section{Composing Simple Bijections}
+We construct $f_\theta$ as a composition of $K$ simple, invertible layers:
+\begin{equation}
+z_0 \equiv z \xrightarrow{f_1} z_1 \xrightarrow{f_2} \cdots \xrightarrow{f_K} z_K \equiv x,
+\label{eq:composition}
+\end{equation}
+so $f_\theta = f_K\circ\cdots\circ f_1$. The log-density factorizes as
+\begin{equation}
+\log p_X(x) = \log p_Z(z_0)\;-\; \sum_{k=1}^{K} \log\left|\det J_{f_k}(z_{k-1})\right|.
+\label{eq:loglik-sum}
+\end{equation}
+\begin{remark}
+The sum of log-determinants in \eqref{eq:loglik-sum} is the core engineering focus: each $f_k$ must provide a cheap inverse and a cheap $\log|\det J_{f_k}|$.
+\end{remark}
+
+\section{Affine Coupling Layers (RealNVP/Glow-style)}
+
+\hl{Split variables via a mask into two parts $x=(x_a,x_b)$. Define}
+% We split the input vector into two groups of components.
+% The "mask" is like a stencil that decides which elements belong to group A ($x_a$)
+% and which belong to group B ($x_b$). This split makes the math tractable.
+
+\paragraph{Definition (Forward transform).}
+\begin{align}
+y_a &= x_a, \label{eq:coupling-ya}\\
+y_b &= x_b \odot \exp\!\big( s_\theta(x_a) \big) + t_\theta(x_a),
+\label{eq:coupling-yb}
+\end{align}
+where \hl{$s_\theta$ and $t_\theta$ are small neural networks}.
+Here, \hl{$x_a$ acts as a \emph{reference}: it is copied directly to $y_a$,
+and it tells the networks how much to \emph{stretch} (scale via $\exp(s_\theta)$)
+and \emph{shift} (via $t_\theta$) the other half $x_b$}.
+
+\begin{remark}[Intuition about splitting]
+Why do we split? If we tried to transform all components of $x$ at once,
+the Jacobian would be a full $D\times D$ matrix and computing its determinant
+would cost $O(D^3)$. By splitting, we only transform one half based on the other,
+so the Jacobian becomes triangular. The determinant of a triangular matrix is
+just the product of its diagonal entries, making it very cheap to compute.
+\end{remark}
+
+\begin{remark}[Plain English]
+Think of it like this: half of the variables ``stay put'' ($x_a$),
+and that frozen half whispers instructions (how much to stretch/shift)
+to the other half. This allows flexible nonlinear transformations
+while still being invertible and mathematically simple.
+\end{remark}
+
+\paragraph{Inverse (closed form).}
+Because the forward mapping is affine in $x_b$, inversion is trivial:
+\begin{equation}
+x_a = y_a, \qquad
+x_b = \big(y_b - t_\theta(y_a)\big) \odot \exp\!\big( -s_\theta(y_a) \big).
+\label{eq:coupling-inverse}
+\end{equation}
+
+\paragraph{Log-determinant (triangular Jacobian).}
+The Jacobian matrix is triangular: the top-left block is identity (since $y_a=x_a$),
+and the bottom-right block is diagonal (due to elementwise scaling of $x_b$).
+Hence,
+\begin{equation}
+\log\left|\det \pdv{y}{x} \right| = \sum_j s_\theta(x_a)_j.
+\label{eq:coupling-logdet}
+\end{equation}
+
+\begin{remark}[Key advantage]
+Because the log-determinant is just the sum of the scale outputs $s_\theta$,
+it is extremely cheap to compute (linear time in the number of dimensions).
+This is why coupling layers are the workhorse of normalizing flows.
+\end{remark}
+
+\begin{remark}[Design pattern]
+Alternate masks (or use permutations/invertible $1{\times}1$ convolutions) across layers so both halves influence each other after several blocks. Clamp $s_\theta$ (e.g., with $\tanh$) to improve numerical stability.
+\end{remark}
+
+\section{Autoregressive Flows (MAF vs.\ IAF)}
+Choose an ordering of dimensions and define an affine autoregressive transform:
+\begin{equation}
+y_i = \mu_i(x_{<i}) + \sigma_i(x_{<i})\, x_i, \qquad i=1,\dots,D;\quad \sigma_i>0.
+\label{eq:arf}
+\end{equation}
+The Jacobian is lower triangular, so
+\begin{equation}
+\log\left|\det \pdv{y}{x}\right| = \sum_{i=1}^D \log \sigma_i(x_{<i}).
+\label{eq:arf-logdet}
+\end{equation}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{MAF} (Masked Autoregressive Flow): fast \emph{density evaluation} (inverse is parallelizable), slower sampling.
+\item \textbf{IAF} (Inverse Autoregressive Flow): fast \emph{sampling} (forward is parallelizable), slower density evaluation.
+\end{itemize}
+
+\section{Invertible $1{\times}1$ Convolutions and ActNorm (Glow)}
+For image tensors $(H\times W \times C)$, apply a per-location invertible linear map across channels:
+\begin{equation}
+y(h,w,:) = W\, x(h,w,:), \qquad W\in \R^{C\times C},\ \det W \neq 0.
+\label{eq:1x1}
+\end{equation}
+Then
+\begin{equation}
+\log\left|\det \pdv{y}{x}\right| = (H\cdot W)\, \log|\det W|.
+\label{eq:1x1-logdet}
+\end{equation}
+\emph{Stability tip:} Parametrize $W = P L U$ (fixed permutation $P$, learnable $L,U$ with positive diagonals) so $\log|\det W| = \sum_i \log U_{ii}$.
+
+\paragraph{ActNorm (per-channel affine).}
+$y = s \odot x + b \;\Rightarrow\; \log|\det| = (H\cdot W)\sum_c \log|s_c|$.
+
+\section{Training: Exact Likelihood and Bits-per-Dimension}
+For a datapoint $x$:
+
+\begin{enumerate}[leftmargin=1.5em,label=\textbf{Step \arabic*.}]
+\item \textbf{Invert:} compute $z=f_\theta^{-1}(x)$ by applying inverses of layers $f_K^{-1},\ldots,f_1^{-1}$.
+\item \textbf{Accumulate log-det:} sum $\sum_k \log|\det J_{f_k}(z_{k-1})|$ during inversion.
+\item \textbf{Base logprob:} for standard Gaussian,
+\begin{equation}
+\log p_Z(z) = -\frac{1}{2}\left( \|z\|_2^2 + D\log(2\pi) \right).
+\label{eq:base-gauss}
+\end{equation}
+\item \textbf{Likelihood:} $\log p_X(x) = \log p_Z(z) - \sum_k \log|\det J_{f_k}|$.
+\item \textbf{Loss:} minimize $-\log p_X(x)$ over the batch with Adam.
+\end{enumerate}
+
+\paragraph{Bits-per-Dimension (images).}
+\begin{equation}
+\mathrm{bpd}
+= -\frac{1}{D\log 2}\; \E_{x}\left[\log p_X(x)\right],\qquad D=H\cdot W\cdot C.
+\label{eq:bpd}
+\end{equation}
+
+\section{Discrete Data and Dequantization}
+Images are discrete (e.g., 8-bit). Flows require continuous inputs. \emph{Uniform dequantization}:
+\begin{equation}
+u \sim \mathrm{Unif}([0,1)^D), \qquad x' = \frac{x + u}{256},
+\label{eq:uniform-deq}
+\end{equation}
+and we train on $x'$. \emph{Variational dequantization} learns a conditional $q_\phi(u\mid x)$ (often another small flow) for a tighter likelihood bound.
+
+\begin{remark}
+Dequantization prevents assigning probability mass to measure-zero grid points and yields a valid continuous objective that corresponds to a bound on the discrete likelihood.
+\end{remark}
+
+\section*{CNF Box: Continuous Normalizing Flows}
+\addcontentsline{toc}{section}{CNF Box: Continuous Normalizing Flows}
+\begin{tcolorbox}[title=\textbf{Continuous Normalizing Flows (CNF)}]
+Define a time-indexed state $z(t)$ via the ODE
+\begin{equation}
+\frac{d z(t)}{dt} = g_\theta\big(z(t), t\big), \qquad z(0)\sim p_Z,\quad x=z(T).
+\label{eq:cnf-ode}
+\end{equation}
+The \emph{instantaneous change of variables} gives:
+\begin{equation}
+\frac{d}{dt}\log p\big(z(t)\big) = -\mathrm{tr}\!\left(\pdv{g_\theta}{z}\right).
+\label{eq:cnf-icov}
+\end{equation}
+Integrating,
+\begin{equation}
+\log p_X(x) = \log p_Z\big(z(0)\big) - \int_{0}^{T} \mathrm{tr}\!\left(\pdv{g_\theta}{z}\right)\, dt.
+\label{eq:cnf-loglik}
+\end{equation}
+\textbf{Practical estimators.} Use Hutchinson's trick for traces:
+$\mathrm{tr}(A) = \E_{v}\left[v^\top A v\right]$ with $v$ Rademacher/Gaussian, computable via Jacobian-vector products. For gradients through the solver, use the adjoint method.\\[0.25em]
+\textbf{Trade-off.} CNFs relax triangular/Jacobian structure constraints but add ODE solve cost; accuracy \emph{vs} speed tunes via solver tolerances/steps.
+\end{tcolorbox}
+
+\section{Conditioning and Conditional Likelihoods}
+To model $p(x\mid c)$, parameterize flows with context $c$:
+\begin{equation}
+y_b = x_b \odot \exp\!\big(s_\theta(x_a,c)\big) + t_\theta(x_a,c),
+\label{eq:cond-coupling}
+\end{equation}
+or use FiLM/concatenation/cross-attention. Train by maximizing $\sum_i \log p_\theta(x^{(i)}\mid c^{(i)})$; sample via $z\sim p_Z$, then $x=f_\theta(z;c)$.
+
+\section{Practical Stability Tips}
+\begin{itemize}[leftmargin=1.5em]
+\item Clamp scaling outputs $s_\theta$ (e.g., $\tanh$) to avoid extreme exponentials.
+\item Use PLU factorization for invertible $1{\times}1$ convolutions.
+\item Track log-dets in \emph{float64} if needed; use log-sum-exp tricks.
+\item Regularize with weight norm/spectral norm on $s_\theta,t_\theta$ networks when helpful.
+\end{itemize}
+
+\section{Minimal Pseudocode (Training and Sampling)}
+\subsection*{Training (one minibatch)}
+\begin{lstlisting}[language=Python,numbers=left,numbersep=6pt,showstringspaces=false,caption=Flow training loop (schematic).]
+loss = 0.0
+for x in batch:                         # x: data sample
+    z = x
+    logdet = 0.0
+    # Invert through layers: x -> z
+    for k in reversed(range(K)):        # f_K^{-1}, ..., f_1^{-1}
+        z, ld = f_k.inverse_and_logdet(z)  # returns z_{k-1}, log|det J_{f_k}|
+        logdet += ld
+    base_lp = base_logprob(z)           # e.g., standard Gaussian
+    loss += -(base_lp - logdet)         # NLL = -log p_X(x)
+loss /= len(batch)
+loss.backward()
+optimizer.step()
+\end{lstlisting}
+
+\subsection*{Sampling}
+\begin{lstlisting}[language=Python,numbers=left,numbersep=6pt,showstringspaces=false,caption=Flow sampling (schematic).]
+z = sample_base(m)           # m samples from p_Z
+x = z
+for k in range(K):           # forward: z -> x
+    x = f_k.forward(x)
+return x
+\end{lstlisting}
+
+\section{Worked 2D Example (Two Coupling Layers)}
+Let $x=(x_1,x_2)$. \textbf{Layer 1} (mask $a{=}\{1\}$):
+\begin{align}
+y_1 &= x_1, \\
+y_2 &= x_2\, \exp\!\big(s_1(x_1)\big) + t_1(x_1),
+\\[-0.75em]
+\intertext{so $\displaystyle \log|\det J_1| = s_1(x_1)$.}
+\end{align}
+\textbf{Layer 2} (swap roles; mask $a{=}\{2\}$):
+\begin{align}
+z_2 &= y_2, \\
+z_1 &= y_1\, \exp\!\big(s_2(y_2)\big) + t_2(y_2),
+\\[-0.75em]
+\intertext{so $\displaystyle \log|\det J_2| = s_2(y_2)$.}
+\end{align}
+Total log-det:
+\begin{equation}
+\log|\det J| = s_1(x_1) + s_2\!\big(y_2(x)\big).
+\label{eq:2d-total-logdet}
+\end{equation}
+Finally, score $z=(z_1,z_2)$ via \eqref{eq:base-gauss} and assemble $\log p_X(x)$ using \eqref{eq:loglik-sum}.
+
+\section*{References (classic exemplars)}
+\addcontentsline{toc}{section}{References}
+\begin{itemize}[leftmargin=1.5em]
+\item L. Dinh, J. Sohl-Dickstein, S. Bengio (2017). \emph{Density Estimation using Real NVP}. ICLR 2017, arXiv:1605.08803.
+\item D. P. Kingma et al. (2016). \emph{Improving Variational Inference with Inverse Autoregressive Flow (IAF)}. NeurIPS 2016, arXiv:1606.04934; G. Papamakarios, T. Pavlakou, I. Murray (2017). \emph{Masked Autoregressive Flow for Density Estimation (MAF)}. NeurIPS 2017, arXiv:1705.07057.
+\item D. P. Kingma, P. Dhariwal (2018). \emph{Glow: Generative Flow with Invertible $1\times1$ Convolutions}. NeurIPS 2018, arXiv:1807.03039.
+\item R. T. Q. Chen, Y. Rubanova, J. Bettencourt, D. Duvenaud (2018). \emph{Neural Ordinary Differential Equations}. NeurIPS 2018, arXiv:1806.07366.
+\item W. Grathwohl, R. T. Q. Chen, J. Bettencourt, I. Sutskever, D. Duvenaud (2019). \emph{FFJORD: Free-form Continuous Dynamics for Scalable Reversible Generative Models}. ICLR 2019, arXiv:1810.01367.
+\end{itemize}
+
+\end{document}

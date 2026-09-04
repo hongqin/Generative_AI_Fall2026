@@ -1,0 +1,151 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+% ---- Supplementary-notes additions (after the shared preamble) ----
+\usepackage{microtype}
+\usepackage[most]{tcolorbox}
+\tcbset{colback=black!3!white, colframe=black!60, boxrule=0.6pt, arc=1.2mm}
+\setlength\emergencystretch{3em}
+
+\title{Supplementary Notes: Energy-Based Models}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\begin{tcolorbox}[width=0.95\textwidth, title=\textbf{About these supplementary notes}]
+Energy-based models (EBMs) were covered as a full lecture in the 16-week version of this course. In the 8-week format they are not part of the core Week 5 material and are provided here as optional reading. They are a natural companion to the diffusion lecture notes: the Langevin sampler described below is the ancestor of iterative denoising, and the score-matching view of diffusion (Week 5, Topic 2) is precisely a way of learning the gradient of an energy landscape without ever computing the partition function.
+\end{tcolorbox}
+\end{center}
+
+\section{The Core Idea: Assigning Energy}
+An \textbf{energy function} $E_\theta(x)$ assigns a score to each possible configuration $x$ of the data:
+\begin{itemize}
+  \item Low energy $\rightarrow$ ``good fit,'' likely.
+  \item High energy $\rightarrow$ ``bad fit,'' unlikely.
+\end{itemize}
+
+\textbf{Analogy:} Imagine a ball rolling on a hilly landscape:
+\begin{itemize}
+  \item Valleys = low energy = ball tends to settle here.
+  \item Peaks = high energy = ball avoids these areas.
+\end{itemize}
+
+\section{From Energy to Probability}
+The connection between energy and probability is given by the Boltzmann distribution:
+\[
+  p_\theta(x) = \frac{\exp(-E_\theta(x))}{Z_\theta},
+\]
+where $Z_\theta = \int \exp(-E_\theta(x))\, dx$ ensures probabilities sum to 1.
+
+\textbf{Analogy:} Imagine a room with snacks of different attractiveness:
+\begin{itemize}
+  \item People gather in corners with better snacks (lower energy).
+  \item $Z_\theta$ ensures that all probabilities sum to 100\%.
+\end{itemize}
+
+\section{Training: Shaping Valleys}
+Training shapes the energy landscape so valleys align with real data:
+\begin{itemize}
+  \item Lower the energy of real data (dig valleys).
+  \item Raise the energy of fake data (build hills).
+\end{itemize}
+
+\textbf{Analogy:} Like a sculptor shaping clay:
+\begin{itemize}
+  \item Real data $\rightarrow$ press down.
+  \item Fake data $\rightarrow$ push up.
+\end{itemize}
+
+\section{The Partition Function Problem}
+Computing $Z_\theta$ directly:
+\[
+  Z_\theta = \int \exp(-E_\theta(x))\, dx
+\]
+is intractable for high-dimensional data. Hence, we use approximation and sampling.
+
+\section{Sampling: Walking Around the Landscape}
+We use stochastic sampling like Langevin dynamics:
+\[
+  x_{t+1} = x_t - \frac{\eta}{2} \nabla_x E_\theta(x_t) + \sqrt{\eta} \, \epsilon_t
+\]
+with noise $\epsilon_t \sim \mathcal{N}(0, I)$.
+
+\textbf{Analogy:} Blindfolded walking:
+\begin{itemize}
+  \item Use the slope (gradient) to walk downhill.
+  \item Add random stumbles to explore other valleys.
+\end{itemize}
+
+\section{Positive vs Negative Phase}
+The gradient of the log-likelihood is:
+\[
+  \nabla_\theta \mathcal{L} = -\mathbb{E}_{x \sim p_{\text{data}}}[\nabla_\theta E_\theta(x)] + \mathbb{E}_{x \sim p_\theta}[\nabla_\theta E_\theta(x)]
+\]
+\begin{itemize}
+  \item Positive phase: lower energy of real data.
+  \item Negative phase: raise energy of fake samples.
+\end{itemize}
+
+\textbf{Analogy:} Like playing Whac-A-Mole:
+\begin{itemize}
+  \item Real data = dig holes.
+  \item Fake data = hammer them back up.
+\end{itemize}
+
+\section{Connections to Other AI Models}
+\begin{itemize}
+  \item Hopfield networks: early associative memory with energy landscapes.
+  \item Boltzmann machines: probabilistic EBMs.
+  \item GANs: adversarial tug-of-war is similar to energy shaping.
+  \item Diffusion models: iterative denoising resembles Langevin sampling. Note that $\nabla_x \log p_\theta(x) = -\nabla_x E_\theta(x)$, so the Langevin update above is a gradient step along the \emph{score}, exactly the quantity that a diffusion noise predictor estimates (Week 5 notes, Topic 2).
+\end{itemize}
+
+\section{Takeaway}
+EBMs are like sculpting a landscape:
+\begin{itemize}
+  \item Valleys = real data.
+  \item Mountains = fake data.
+\end{itemize}
+Training ensures real examples fall into valleys while fake ones are pushed up.
+
+\section*{References}
+\begin{itemize}[leftmargin=1.5em]
+\item Y. LeCun, S. Chopra, R. Hadsell, M. Ranzato, F. J. Huang, ``A Tutorial on Energy-Based Learning,'' in \emph{Predicting Structured Data}, MIT Press, 2006.
+\item Y. Du, I. Mordatch, ``Implicit Generation and Modeling with Energy-Based Models,'' NeurIPS 2019, arXiv:1903.08689.
+\item Y. Song, D. P. Kingma, ``How to Train Your Energy-Based Models,'' 2021, arXiv:2101.03288.
+\item D. Foster, \emph{Generative Deep Learning}, 2nd ed., O'Reilly, 2023, Chapter 7 (Energy-Based Models). Companion notebook \texttt{notebooks/07\_ebm/01\_ebm}.
+\end{itemize}
+
+\end{document}

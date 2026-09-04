@@ -1,0 +1,223 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+\title{Supplementary Notes: Conformal Prediction}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+\begin{center}\small\itshape Note: this topic was covered in the sixteen-week version of this course. It is provided here as optional reading and is not part of the eight-week core. Nothing in these notes is required for the weekly assignments or the course project.\end{center}
+\medskip
+
+\section{Introduction}
+Conformal prediction (CP) is a framework for \textbf{uncertainty quantification (UQ)} in machine learning.
+It wraps around any black-box model to produce prediction \emph{sets} or \emph{intervals} with rigorous, distribution-free coverage guarantees.
+Unlike Bayesian or ensemble approaches, CP does not assume any specific data distribution, only that the data are \textbf{exchangeable} (i.i.d.\ is a common special case).
+
+\bigskip
+The central guarantee is that for a user-chosen error rate $\alpha \in (0,1)$,
+\[
+\mathbb{P}\!\left( Y_{\text{true}} \notin \hat{C}(X) \right) \leq \alpha,
+\]
+where $\hat{C}(X)$ is the prediction set for input $X$. In words: with probability at least $1-\alpha$, the prediction set will contain the true label or value.
+
+\section{Core Principle and Intuition}
+The idea is to measure how ``typical'' or ``atypical'' a new example looks compared to past data.
+Instead of producing a single prediction (which may be over- or under-confident), CP produces a set of possible outcomes that is guaranteed to contain the truth at least $1-\alpha$ of the time.
+
+\bigskip
+\noindent \textbf{Key steps:}
+\begin{enumerate}
+    \item Split data into a training set (for fitting the base model) and a calibration set (for calibration).
+    \item Train any base model $f$ (regressor, classifier, neural network, etc.).
+    \item Define a \textbf{nonconformity score} $s(x,y)$, which measures how unusual $(x,y)$ is relative to the model.
+    \item Compute nonconformity scores for all calibration points.
+    \item Take a high quantile of these scores as the threshold.
+    \item For a new input, include in the prediction set all labels/values whose score is below the threshold.
+\end{enumerate}
+
+\section{Nonconformity vs.\ Similarity Scores}
+A central concept is the \textbf{nonconformity score}, which quantifies how ``strange'' or ``non-conforming'' a point looks.
+
+\begin{itemize}
+    \item Regression: $s(x,y) = |y - f(x)|$ (absolute residual).
+    \item Classification: $s(x,y) = 1 - \hat{p}(y|x)$ (one minus predicted probability of the true class).
+\end{itemize}
+
+Why not use similarity?
+If we used a similarity score (high = typical, low = strange), we would need to invert all comparisons to identify outliers.
+Using nonconformity is natural: larger scores automatically correspond to stranger examples.
+This makes it straightforward to control the ``tail risk'' by picking a quantile threshold.
+
+\bigskip
+\noindent \textbf{Analogy:}
+Grading exam answers:
+\begin{itemize}
+    \item Similarity view: ``This answer is 90\% similar to the key.''
+    \item Nonconformity view: ``This answer makes 10\% mistakes.''
+\end{itemize}
+To set a rule like ``reject the worst 5\% of answers,'' it is more natural to work with mistakes (nonconformity).
+
+\section{Role of $\alpha$}
+The parameter $\alpha$ is the \textbf{user-chosen error rate}:
+\[
+\mathbb{P}\!\left( Y_{\text{true}} \in \hat{C}(X) \right) \geq 1-\alpha.
+\]
+
+\begin{itemize}
+    \item Smaller $\alpha$ (e.g.\ 0.05) means you want to be wrong only 5\% of the time. Prediction sets are larger/wider.
+    \item Larger $\alpha$ (e.g.\ 0.2) means you accept being wrong 20\% of the time. Prediction sets are smaller/tighter.
+\end{itemize}
+
+Thus, $\alpha$ directly controls the \textbf{tradeoff between coverage and efficiency}.
+It is not the same as a Bayesian posterior probability; instead it is a distribution-free guarantee.
+
+\section{Quantile Selection in Practice}
+To achieve the target error rate $\alpha$, we use the nonconformity scores from the calibration set:
+\begin{enumerate}
+    \item Suppose calibration set size is $n$.
+    \item Sort the scores: $s_{(1)} \leq s_{(2)} \leq \dots \leq s_{(n)}$.
+    \item Choose threshold $q = s_{(k)}$ where
+    \[
+    k = \left\lceil (1-\alpha)(n+1) \right\rceil.
+    \]
+\end{enumerate}
+
+This ensures finite-sample validity.
+
+\subsection*{Regression Example}
+Calibration residuals:
+\[
+\{0.5, 1.2, 0.9, 2.1, 1.8, 0.3, 1.1, 2.5, 0.7, 1.4\}.
+\]
+Sorted:
+\[
+\{0.3, 0.5, 0.7, 0.9, 1.1, 1.2, 1.4, 1.8, 2.1, 2.5\}.
+\]
+
+With $\alpha = 0.1$ and $n=10$:
+\[
+k = \lceil 0.9 \times 11 \rceil = \lceil 9.9 \rceil = 10.
+\]
+Threshold $q=2.5$.
+If $\hat{y}=8.0$, prediction interval is $[8.0-2.5,\,8.0+2.5]=[5.5,\,10.5]$.
+
+\subsection*{Classification Example}
+Suppose calibration predicted probabilities for the true class are
+\[
+\{0.90, 0.70, 0.60, 0.50, 0.40, 0.30\}.
+\]
+Scores (1 minus):
+\[
+\{0.10, 0.30, 0.40, 0.50, 0.60, 0.70\}.
+\]
+Sorted: same order.
+
+With $\alpha=0.1$, $n=6$:
+\[
+k = \lceil 0.9 \times 7 \rceil = \lceil 6.3 \rceil = 7,
+\]
+so we take the largest score $0.70$.
+
+For a new input with predicted probabilities
+\[
+p(A)=0.65,\; p(B)=0.25,\; p(C)=0.10,
+\]
+scores are $0.35, 0.75, 0.90$.
+Keep labels with score $\leq 0.70$. Prediction set = $\{A\}$.
+
+\bigskip
+If instead $p(A)=0.40,\; p(B)=0.35,\; p(C)=0.25$,
+scores are $0.60, 0.65, 0.75$.
+Prediction set = $\{A,B\}$.
+
+\section{Key Takeaways}
+\begin{itemize}
+    \item Conformal prediction produces set-valued predictions with distribution-free coverage guarantees.
+    \item Nonconformity scores measure ``strangeness'' and make it easy to threshold extreme cases.
+    \item The parameter $\alpha$ is the miscoverage tolerance; $1-\alpha$ is the coverage guarantee.
+    \item Prediction sets adapt to model quality: narrow when the model is accurate, wide when the model is uncertain.
+\end{itemize}
+
+\section{Conformal Prediction for Time Series}
+
+While conformal prediction provides distribution-free coverage guarantees under exchangeability,
+time series data violate this assumption due to temporal dependence and potential non-stationarity.
+Extending CP to time series requires careful handling of these dependencies.
+
+\subsection*{Challenges}
+\begin{itemize}
+    \item \textbf{Dependence:} Observations at different time points are correlated, so the usual permutation-based arguments for validity no longer hold directly.
+    \item \textbf{Non-stationarity:} Time series may drift or exhibit changing variance, requiring adaptive calibration.
+    \item \textbf{Prediction horizon:} For $h$-step ahead forecasts, uncertainty grows with horizon length.
+\end{itemize}
+
+\subsection*{Approaches}
+Several strategies have been proposed to adapt CP to time series:
+\begin{itemize}
+    \item \textbf{Sliding-window conformal prediction:} Use only the most recent $w$ observations as the calibration set. This enforces a form of ``local exchangeability'' and adapts to drift.
+    \item \textbf{Block conformal prediction:} Partition the series into blocks and treat each block as approximately exchangeable, capturing short-range dependencies.
+    \item \textbf{Adaptive/weighted conformal prediction:} Weight calibration residuals by recency or importance, giving more influence to recent dynamics.
+    \item \textbf{Model-based CP:} Combine CP with probabilistic forecasters (e.g., autoregressive models, RNNs, Transformers) to generate residual-based nonconformity scores that account for temporal structure.
+\end{itemize}
+
+\subsection*{Example: Sliding-window CP}
+Suppose we want to forecast $Y_{t+1}$ from features $X_t$.
+We train a predictive model $f$ on past data, then compute nonconformity scores on a moving calibration window:
+\[
+s_i = |Y_i - f(X_{i-1})|, \quad i = t-w+1, \dots, t.
+\]
+We then compute the $(1-\alpha)$-quantile of $\{s_i\}$ and form the prediction interval
+\[
+\hat{C}_{t+1} = \big[ f(X_t) - q_{1-\alpha}, \, f(X_t) + q_{1-\alpha} \big].
+\]
+As $t$ advances, the calibration window updates, adapting to non-stationary trends.
+
+\subsection*{Applications}
+Recent work has successfully applied conformal prediction to time series forecasting in domains such as:
+\begin{itemize}
+    \item \textbf{Traffic forecasting:} Providing uncertainty bands around flow predictions on road networks.
+    \item \textbf{Energy demand forecasting:} Quantifying risk in power grid load prediction.
+    \item \textbf{Finance:} Forecasting with distribution-free confidence intervals under non-stationarity.
+\end{itemize}
+
+\subsection*{Related Work}
+\begin{itemize}
+    \item C. Xu and Y. Xie. ``Conformal Prediction Interval for Dynamic Time-Series.'' In \emph{Proceedings of the 38th International Conference on Machine Learning (ICML)}, 2021.
+    \item I. Gibbs and E. Cand\`es. ``Adaptive Conformal Inference Under Distribution Shift.'' In \emph{Advances in Neural Information Processing Systems (NeurIPS)}, 2021.
+    \item A. N. Angelopoulos and S. Bates. ``A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification.'' arXiv:2107.07511, 2021.
+\end{itemize}
+
+These works extend CP to dependent data by developing rigorous guarantees under relaxed assumptions (e.g., mixing conditions, block exchangeability) and by designing adaptive calibration strategies.
+
+\end{document}

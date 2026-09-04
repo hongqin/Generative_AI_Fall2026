@@ -1,0 +1,599 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+% Additional definitions for this supplementary note
+\newcommand{\highlight}[1]{\colorbox{yellow!40}{#1}}
+
+\title{Supplementary Notes: DeepSeek Architecture and Training}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+
+\begin{quote}\small\itshape Note. The material in these supplementary notes was covered in the 16-week version of this course and is \textbf{optional reading} for the 8-week offering. It assumes the Week 6 lecture notes on transformers (self-attention, positional encoding, the transformer block, and next-token training) and is provided for students who want to see how those ideas are extended in current research systems.\end{quote}
+
+\tableofcontents
+\newpage
+
+\section{Brief Introduction to the DeepSeek Model Family}
+
+DeepSeek is a family of large language models (LLMs) designed to deliver competitive or superior performance to other frontier models while being significantly more efficient in training and inference.
+
+Recent versions such as \emph{DeepSeek-V3} and \emph{DeepSeek-R1} are built on a decoder-only Transformer backbone but introduce three key architectural ideas:
+
+\begin{enumerate}[label=\arabic*)]
+  \item \textbf{Multi-Head Latent Attention (MLA):} instead of storing a separate key and value tensor per attention head, DeepSeek compresses keys and values into a low-dimensional \emph{latent} space and only caches these latent K/V tensors. At inference time, each head reconstructs its own keys and values from the shared latent representation. This drastically reduces KV-cache memory and bandwidth, enabling long contexts and large models with lower cost.
+
+  \item \textbf{DeepSeekMoE (Mixture-of-Experts):} the usual dense feed-forward network (FFN) is replaced by a sparse Mixture-of-Experts: many small expert FFNs plus a routing network that selects only a few experts per token. Variants such as fine-grained experts, shared experts, and improved load balancing give very high parameter capacity while keeping the per-token compute budget modest.
+
+  \item \textbf{Rotary Positional Embeddings (RoPE):} positional information is injected by applying position-dependent rotations to query and key vectors. In DeepSeek, RoPE is combined with MLA by splitting the representation into RoPE-aware and non-RoPE (NoPE) components, giving the model a flexible way to represent both positional and pure semantic information.
+
+    \item \textbf{Multi-Token Generation (MTG):} DeepSeek augments standard next-token prediction with mechanisms that allow the model to propose and verify several future tokens in a single forward pass. This includes parallel multi-token prediction heads during training and speculative or Medusa-style multi-token decoding during inference. MTG reduces autoregressive latency, increases throughput, and accelerates long-form reasoning and reinforcement-learning rollouts in DeepSeek-R1.
+\end{enumerate}
+
+At a high level, a single DeepSeek Transformer block can be seen as:
+\[
+\text{Block}(X) = X + \text{MLA}\big(\text{LN}(X)\big)
+                 + \text{MoE}\big(\text{LN}(X + \text{MLA}(\text{LN}(X)))\big),
+\]
+where \highlight{LN denotes Layer Normalization, MLA is the attention module with latent K/V and RoPE}, and \highlight{MoE is the sparsely activated mixture-of-experts module}.
+
+
+\section{High-Level Architecture}
+
+Let:
+\begin{itemize}
+  \item $L$ be the sequence length.
+  \item $d_{\text{model}}$ be the model dimension.
+  \item $H$ be the number of attention heads.
+  \item $d_h = d_{\text{model}} / H$ be the per-head dimension.
+\end{itemize}
+
+Given a layer input
+\[
+X \in \mathbb{R}^{L \times d_{\text{model}}},
+\]
+a DeepSeek block proceeds in two main stages:
+\begin{enumerate}[label=\arabic*)]
+  \item \textbf{Multi-Head Latent Attention (MLA)} with RoPE:
+  \[
+  A = \text{MLA}( \text{LN}(X) ) \in \mathbb{R}^{L \times d_{\text{model}}}.
+  \]
+  \item \textbf{Mixture-of-Experts (MoE) FFN:}
+  \[
+  M = \text{MoE}( \text{LN}(X + A) ) \in \mathbb{R}^{L \times d_{\text{model}}}.
+  \]
+\end{enumerate}
+The output of the block is then:
+\[
+Y = X + A + M.
+\]
+
+\textbf{Plain-language view:}
+\begin{itemize}
+  \item The attention part decides ``what each token should look at'' in the context, using MLA+RoPE efficiently.
+  \item The MoE part applies several sparsely selected feed-forward ``experts'' to transform each token in a content-dependent way.
+\end{itemize}
+
+\section{Review: Standard Transformer Self-Attention}
+
+For comparison, standard multi-head attention (MHA) proceeds as follows.
+
+\subsection{Mathematical Formulation}
+
+Input:
+\[
+X \in \mathbb{R}^{L \times d_{\text{model}}}.
+\]
+Linear projections:
+\begin{align*}
+Q &= X W_Q, \\
+K &= X W_K, \\
+V &= X W_V,
+\end{align*}
+where $W_Q, W_K, W_V \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$.
+
+We split $Q, K, V$ into $H$ heads:
+\[
+Q = [Q^{(1)}, \dots, Q^{(H)}], \quad
+Q^{(h)} \in \mathbb{R}^{L \times d_h},
+\]
+and similarly for $K^{(h)}, V^{(h)}$.
+
+For head $h$:
+\[
+\text{Attn}^{(h)}(X)
+=
+\text{softmax}\!\left(
+\frac{Q^{(h)} (K^{(h)})^{\top}}{\sqrt{d_h}}
+\right) V^{(h)}.
+\]
+
+We then concatenate and project:
+\[
+\text{MHA}(X)
+= \big[ \text{Attn}^{(1)}, \dots, \text{Attn}^{(H)} \big] W_O,
+\]
+with $W_O \in \mathbb{R}^{d_{\text{model}} \times d_{\text{model}}}$.
+
+\subsection{Plain-Language Explanation}
+
+\begin{enumerate}[label=\arabic*)]
+  \item For each token, the model computes three versions of its representation: a \emph{query}, a \emph{key}, and a \emph{value}.
+  \item For each head, it measures how similar the current token's query is to every other token's key (via dot product).
+  \item These similarities are turned into attention weights using softmax.
+  \item The head output is a weighted sum of all value vectors, using these attention weights.
+  \item All heads are concatenated and linearly mixed to form the final attention output.
+\end{enumerate}
+
+The bottleneck: storing and streaming all keys and values for every head becomes very expensive for long sequences and large models.
+
+\section{Multi-Head Latent Attention (MLA)}
+
+MLA keeps the \emph{queries} per head but \highlight{compresses \emph{keys} and \emph{values} into a shared low-dimensional latent space}, then reconstructs per-head K and V from that space. This greatly reduces KV-cache memory and bandwidth in autoregressive decoding and help the model process \highlight{long sequences} more efficiently.
+
+\subsection{Latent K/V Definitions}
+
+Let $d_{\ell} \ll d_{\text{model}}$ be the latent dimension. Starting from
+\[
+X \in \mathbb{R}^{L \times d_{\text{model}}},
+\]
+we compute:
+
+\paragraph{Per-head queries.}
+For each head $h$:
+\[
+Q^{(h)} = X W_Q^{(h)}, \quad W_Q^{(h)} \in \mathbb{R}^{d_{\text{model}} \times d_h}.
+\]
+
+\paragraph{Shared latent keys/values.}
+We define head-independent latent K and V:
+\begin{align*}
+K_{\text{lat}} &= X W_{K,\text{lat}} \in \mathbb{R}^{L \times d_{\ell}}, \\
+V_{\text{lat}} &= X W_{V,\text{lat}} \in \mathbb{R}^{L \times d_{\ell}},
+\end{align*}
+where $W_{K,\text{lat}}, W_{V,\text{lat}} \in \mathbb{R}^{d_{\text{model}} \times d_{\ell}}$.
+
+\paragraph{Per-head reconstruction from latent space.}
+For each head $h$, we have small ``decoder'' matrices:
+\[
+U_K^{(h)}, U_V^{(h)} \in \mathbb{R}^{d_{\ell} \times d_h},
+\]
+and reconstruct
+\begin{align*}
+K^{(h)} &= K_{\text{lat}} U_K^{(h)} \in \mathbb{R}^{L \times d_h}, \\
+V^{(h)} &= V_{\text{lat}} U_V^{(h)} \in \mathbb{R}^{L \times d_h}.
+\end{align*}
+
+\paragraph{Attention computation.}
+Attention itself is standard:
+\[
+\text{Attn}^{(h)}(X)
+=
+\text{softmax}\!\left(
+\frac{Q^{(h)} (K^{(h)})^{\top}}{\sqrt{d_h}}
+\right) V^{(h)}.
+\]
+
+In \highlight{autoregressive decoding, only $K_{\text{lat}}$ and $V_{\text{lat}}$ are cached}. The full per-head $K^{(h)}, V^{(h)}$ are reconstructed on the fly via $U_K^{(h)}, U_V^{(h)}$.
+
+\subsection{MLA with RoPE-Aware and NoPE Components (High-Level)}
+
+DeepSeek further splits the representation into:
+\begin{itemize}
+  \item A RoPE-aware part $(q_{\text{rope}}^{(h)}, k_{\text{rope}})$, which receives rotary position embeddings.
+  \item A NoPE (no positional embedding) part $(q_{\text{nope}}^{(h)}, k_{\text{nope}}^{(h)})$, which stays purely semantic.
+\end{itemize}
+
+The attention score for head $h$ is then based on a combination of these components, typically written schematically as
+\[
+\alpha^{(h)}_{ij} \propto
+\left(
+\langle \tilde{q}^{(h)}_{\text{rope}, i}, \tilde{k}_{\text{rope}, j} \rangle
++
+\langle q^{(h)}_{\text{nope}, i}, k^{(h)}_{\text{nope}, j} \rangle
+\right),
+\]
+where $\tilde{q}$ and $\tilde{k}$ denote RoPE-rotated vectors (see Section~\ref{sec:rope}).
+
+\subsection{Plain-Language Explanation of MLA}
+
+\begin{enumerate}[label=\arabic*)]
+  \item Instead of building a big key and value tensor for each head, the model builds a single compact \emph{latent} key tensor $K_{\text{lat}}$ and a single compact \emph{latent} value tensor $V_{\text{lat}}$ that all heads share.
+  \item During generation, only $K_{\text{lat}}$ and $V_{\text{lat}}$ are stored in the KV-cache; this dramatically shrinks the memory footprint.
+  \item Each attention head has its own small decoder matrices that convert the latent representation into its head-specific keys and values.
+  \item The attention mechanism (dot product, softmax, weighted sum of values) stays unchanged; the only difference is that keys and values are factored through a low-rank latent space.
+  \item As a result, DeepSeek can handle much longer sequences and larger models while keeping inference efficient.
+\end{enumerate}
+
+\section{Rotary Positional Embeddings (RoPE)}
+\label{sec:rope}
+
+RoPE injects positional information into queries and keys by applying position-dependent 2D rotations in feature space.
+
+\subsection{Mathematical Definition}
+
+Consider a per-head vector $x \in \mathbb{R}^{d_h}$ (either a query or a key). Group its coordinates into 2D pairs:
+\[
+x =
+(x_0, x_1, x_2, x_3, \dots, x_{d_h-2}, x_{d_h-1}),
+\]
+with pairs
+\[
+(x_{2j}, x_{2j+1}), \quad j = 0, 1, \dots, d_h/2 - 1.
+\]
+
+For token position $i$ (0-indexed), define a frequency $\omega_j$ and an angle
+\[
+\omega_j = 10000^{-2j/d_h}, \qquad
+\theta_{i,j} = i \cdot \omega_j.
+\]
+
+The RoPE-transformed pair at position $i$ is
+\[
+\begin{bmatrix}
+\tilde{x}_{2j} \\
+\tilde{x}_{2j+1}
+\end{bmatrix}
+=
+\begin{bmatrix}
+\cos \theta_{i,j} & -\sin \theta_{i,j} \\
+\sin \theta_{i,j} & \cos \theta_{i,j}
+\end{bmatrix}
+\begin{bmatrix}
+x_{2j} \\
+x_{2j+1}
+\end{bmatrix}.
+\]
+
+We denote this operation by
+\[
+\tilde{x} = \text{RoPE}(x, i).
+\]
+
+Queries and keys are then replaced by their RoPE-rotated versions:
+\[
+\tilde{q}_i^{(h)} = \text{RoPE}(q_i^{(h)}, i), \qquad
+\tilde{k}_i^{(h)} = \text{RoPE}(k_i^{(h)}, i).
+\]
+
+The attention scores use $\tilde{q}$ and $\tilde{k}$:
+\[
+\text{score}^{(h)}_{ij}
+=
+\frac{
+\tilde{q}_i^{(h)} \cdot \tilde{k}_j^{(h)}
+}{
+\sqrt{d_h}
+}.
+\]
+
+A key property of RoPE is that $\tilde{q}_i^{\top}\tilde{k}_j$ depends on the \emph{relative} position $(i - j)$, enabling good extrapolation to long contexts.
+
+\subsection{Plain-Language Explanation of RoPE}
+
+\begin{enumerate}[label=\arabic*)]
+  \item View each pair of adjacent dimensions of a query or key vector as a point in a 2D plane. So, \highlight{traditional sinusoidal PE is additive; ROPE is rotational}. 
+  \item For a token at position $i$, rotate every such 2D point by a position-dependent angle; different pairs use different rotation rates (frequencies).
+  \item When two rotated vectors from positions $i$ and $j$ are compared via dot product, the result now encodes both content similarity \emph{and} the relative position $(i-j)$.
+  \item This gives the model a smooth, periodic representation of position that generalizes to sequences longer than those seen in training.
+  \item In DeepSeek's MLA, only part of the representation receives RoPE (RoPE part), while another part remains unrotated (NoPE), letting the model disentangle positional information from purely semantic dimensions.
+\end{enumerate}
+
+\section{Mixture-of-Experts (DeepSeekMoE) and Router}
+
+In a standard Transformer, the post-attention feed-forward network (FFN) is a single dense MLP. DeepSeek replaces this with a \emph{sparse} Mixture-of-Experts (MoE): many experts, but only a small subset are active per token.
+
+\subsection{Mathematical Formulation}
+
+Suppose the hidden state entering the MoE at token $t$ is $u_t \in \mathbb{R}^{d_{\text{model}}}$. There are $N$ experts, each being an FFN:
+\[
+\text{FFN}_i: \mathbb{R}^{d_{\text{model}}} \to \mathbb{R}^{d_{\text{model}}}, \quad i = 1,\dots,N.
+\]
+
+\paragraph{Routing scores.}
+The router computes a score for each expert:
+\[
+s_{i,t} = w_i^\top u_t + b_i, \quad i = 1,\dots,N,
+\]
+where \highlight{$w_i \in \mathbb{R}^{d_{\text{model}}}$} and $b_i \in \mathbb{R}$ are learnable parameters.
+
+\paragraph{Softmax probabilities.}
+\[
+p_{i,t} =
+\frac{\exp(s_{i,t})}{\sum_{j=1}^N \exp(s_{j,t})}.
+\]
+
+\paragraph{Top-$K$ gating.}
+Let $\mathcal{T}_t$ be the set of indices of the  \highlight{top-$K$ experts for token $t$ } (based on $p_{i,t}$). Define the \highlight{ normalized gates}:
+\[
+g_{i,t} =
+\begin{cases}
+\dfrac{p_{i,t}}{\sum_{j \in \mathcal{T}_t} p_{j,t}}, & i \in \mathcal{T}_t, \\[6pt]
+0, & \text{otherwise}.
+\end{cases}
+\]
+
+\paragraph{Expert outputs and aggregation.}
+Each selected expert produces an output:
+\[
+y_{i,t} = \text{FFN}_i(u_t).
+\]
+The MoE output is the \highlight{gated sum}:
+\[
+y_t = \sum_{i=1}^N g_{i,t} \, y_{i,t}
+    = \sum_{i \in \mathcal{T}_t} g_{i,t} \, \text{FFN}_i(u_t).
+\]
+
+\paragraph{DeepSeekMoE refinements (conceptual).}
+DeepSeek introduces:
+\begin{itemize}
+  \item \emph{Fine-grained experts:} experts may be internally segmented into smaller sub-experts to increase diversity.
+  \item  \highlight{ \emph{Shared experts:} } a small subset of experts are always active (generalists) to capture common patterns and stabilize training.
+  \item \emph{Improved load balancing:} routing and training procedures reduce expert collapse and balance tokens across experts without heavy auxiliary losses.
+\end{itemize}
+
+\subsection{Plain-Language Explanation of MoE and Router}
+
+\begin{enumerate}[label=\arabic*)]
+  \item Think of many small specialist networks (experts), each good at processing certain kinds of tokens or patterns.
+  \item For each token, the router looks at its hidden state and scores how suitable each expert is.
+  \item Only a few top-scoring experts (e.g.\ $K=2$ or $K=4$) are chosen for that token; all others are skipped.
+  \item The token is passed through those selected experts, producing several candidate transformed vectors.
+  \item The router then takes a weighted average of these candidate vectors to form the final MoE output for that token.
+  \item Because each token uses only a small subset of experts, the model can have a very large total number of parameters (high capacity) without increasing the per-token compute cost too much.
+\end{enumerate}
+
+\section{Reinforcement Learning and Policy Innovation in DeepSeek}
+
+Beyond architecture, DeepSeek models (especially DeepSeekMath and DeepSeek-R1) are trained with a distinctive reinforcement learning (RL) framework designed to improve reasoning while keeping training efficient. The key policy innovation is \emph{Group Relative Policy Optimization} (GRPO), a critic-free variant of PPO that uses \emph{relative} rewards within groups of samples.
+
+\subsection{RL Training Pipeline for DeepSeek-R1}
+
+Conceptually, DeepSeek-R1 is derived from a strong base model (e.g.\ DeepSeek-V3-Base) using several RL-related stages:
+
+\begin{enumerate}[label=\arabic*)]
+  \item \textbf{DeepSeek-R1-Zero (pure RL on the base model).}
+  \begin{itemize}
+    \item Start from the base model without any supervised fine-tuning.
+    \item Use GRPO with rule-based rewards that check final answer correctness and output format (for math, coding, logic tasks).
+    \item The model is trained purely via RL to solve verifiable problems; sophisticated reasoning behaviors such as longer thinking, self-reflection, and re-checking emerge automatically.
+  \end{itemize}
+
+  \item \textbf{DeepSeek-R1 with cold-start data.}
+  \begin{itemize}
+    \item Collect a small but high-quality dataset of long chain-of-thought (CoT) solutions with human-designed formatting.
+    \item Supervised fine-tune the base model on this CoT data to obtain an initial actor that is more readable and user-friendly.
+  \end{itemize}
+
+  \item \textbf{Reasoning-oriented RL.}
+  \begin{itemize}
+    \item Apply large-scale GRPO-based RL on reasoning-intensive tasks (math, coding, science, logic).
+    \item Rewards combine final-answer correctness with auxiliary terms such as language consistency, encouraging both accuracy and readable reasoning.
+  \end{itemize}
+
+  \item \textbf{Rejection-sampling SFT.}
+  \begin{itemize}
+    \item From the RL-trained checkpoint, generate multiple candidate trajectories per prompt.
+    \item Keep only correct and readable trajectories (via rule-based or model-based judgments).
+    \item Use these high-quality trajectories to build a larger supervised dataset and fine-tune again, improving general skills (writing, dialogue, etc.).
+  \end{itemize}
+
+  \item \textbf{RL for all scenarios.}
+  \begin{itemize}
+    \item Run a second RL stage that mixes reasoning tasks with more general tasks.
+    \item Combine rule-based rewards (for verifiable problems) with neural preference models that score helpfulness and harmlessness.
+    \item Rewards focus mainly on the final answer for helpfulness, while safety rewards consider the whole reasoning trace and summary.
+  \end{itemize}
+\end{enumerate}
+
+Overall, DeepSeek-R1 cycles between RL and supervised fine-tuning, gradually refining both reasoning ability and user-facing quality.
+
+\subsection{ \highlight{ Group Relative Policy Optimization (GRPO)}: Objective and Advantages}
+
+GRPO is a policy gradient method related to PPO but designed for large LLMs:
+
+\begin{itemize}
+  \item It \textbf{removes the critic network}. Instead of learning a separate value function, GRPO estimates advantages from \emph{relative} scores within a group of responses.
+  \item It \textbf{keeps PPO-style clipping} and a KL-penalty to stabilize updates.
+  \item It is \textbf{memory-efficient} because no large critic model is required.
+\end{itemize}
+
+\subsubsection*{GRPO Objective}
+
+Let $P(Q)$ be a distribution over questions $q$. For each question $q$, GRPO samples a \emph{group} of $G$ responses from an old policy $\pi_{\theta_{\text{old}}}$:
+\[
+\{ o_1, o_2, \dots, o_G \} \sim \pi_{\theta_{\text{old}}}(\cdot \mid q).
+\]
+
+Each response $o_i$ receives a \highlight{ scalar reward $r_i$ } (for example, $r_i = 1$ if the final answer is correct, $0$ otherwise, plus optional format/language bonuses). From these rewards, GRPO constructs a \emph{group-normalized advantage}:
+\begin{align*}
+\bar{r} &= \frac{1}{G} \sum_{j=1}^G r_j, \\
+s_r &= \sqrt{ \frac{1}{G} \sum_{j=1}^G (r_j - \bar{r})^2 + \epsilon }, \\
+A_i &= \frac{r_i - \bar{r}}{s_r},
+\end{align*}
+where $\epsilon$ is a small constant to avoid division by zero.
+
+Define the \highlight{ probability ratio } between the new policy $\pi_\theta$ and the old policy $\pi_{\theta_{\text{old}}}$:
+\[
+\rho_i(\theta) = \frac{\pi_\theta(o_i \mid q)}{\pi_{\theta_{\text{old}}}(o_i \mid q)}.
+\]
+
+GRPO maximizes the \highlight{ clipped, group-averaged objective with a KL regularizer}:
+\[
+J_{\text{GRPO}}(\theta)
+=
+\mathbb{E}_{q \sim P(Q)}
+\left[
+\frac{1}{G}
+\sum_{i=1}^G
+\left(
+\min\!\big(
+\rho_i(\theta) A_i,\,
+\operatorname{clip}(\rho_i(\theta), 1-\varepsilon, 1+\varepsilon)\,A_i
+\big)
+- \beta \, \text{KL}\big(\pi_\theta(\cdot\mid q)\,\|\,\pi_{\text{ref}}(\cdot\mid q)\big)
+\right)
+\right],
+\]
+where $\varepsilon$ and $\beta$ are hyperparameters and $\pi_{\text{ref}}$ is a reference policy (e.g.\ the base model or an SFT checkpoint).
+
+Intuitively:
+\begin{itemize}
+  \item If a response performs better than the group average ($A_i > 0$), GRPO pushes up its probability.
+  \item If it performs worse ($A_i < 0$), GRPO pushes its probability down.
+  \item The clipping on $\rho_i(\theta)$ prevents overly large policy updates, in the spirit of PPO.
+  \item The KL term keeps the policy close to a reference model, stabilizing training.
+\end{itemize}
+
+\subsubsection*{Plain-Language Explanation of GRPO}
+
+\begin{enumerate}[label=\arabic*)]
+  \item For each question, sample several candidate answers from the \emph{old} model.
+  \item Score every answer with a scalar reward (e.g.\ correct vs.\ incorrect, plus formatting/language bonuses).
+  \item Compare answers only \emph{within the same group}:
+  \begin{itemize}
+    \item Answers better than the group average get positive advantage.
+    \item Answers worse than the group average get negative advantage.
+  \end{itemize}
+  \item Compute how much more or less likely the \highlight{new} model wants to make each answer relative to the old one (this is the probability ratio $\rho_i$).
+  \item Increase the probability of above-average answers and decrease the probability of below-average answers, but clip the update so it does not move too far in one step.
+  \item Add a penalty if the new model drifts too far from a reference model (via the KL term).
+\end{enumerate}
+
+This design replaces the complex value-function critic with a simple, group-based baseline and works well when \highlight{ rewards are sparse but verifiable (e.g.\ final answer correctness). }
+
+\subsection{Reward Design and Emergent Reasoning}
+
+DeepSeek's RL pipeline uses relatively simple yet carefully chosen reward signals:
+
+\begin{itemize}
+  \item \textbf{Accuracy rewards} that check if the final answer matches the ground truth:
+  \begin{itemize}
+    \item For math, require the answer in a specific format (e.g.\ in a box or after a tag) and compare exactly.
+    \item For coding, compile and run tests; reward depends on passing test cases.
+  \end{itemize}
+  \item \textbf{Format rewards} that enforce \highlight{ structural patterns} such as:
+  \[
+  \langle\text{think}\rangle \text{ reasoning process } \langle/\text{think}\rangle
+  \langle\text{answer}\rangle \text{ final answer } \langle/\text{answer}\rangle.
+  \]
+  \item \textbf{Language and style rewards} that encourage output in a target language with readable formatting (e.g.\ markdown, clear summaries).
+  \item \textbf{Preference rewards} in later stages, where a learned reward model judges helpfulness and harmlessness on open-ended tasks.
+\end{itemize}
+
+A notable empirical outcome is  \highlight{complex reasoning behaviors emerge without being hard-coded}:
+
+\begin{itemize}
+  \item The model learns to spend more ``thinking time'' (longer reasoning traces) on harder problems.
+  \item It develops self-reflection patterns, such as revisiting previous steps when it suspects an error.
+  \item It explores alternative solution strategies, guided only by correctness and simple format constraints.
+\end{itemize}
+
+In this sense, DeepSeek's RL approach is a \highlight{policy innovation}: rather than prescribing a specific style of reasoning, the training only rewards \highlight{outcomes and minimal structure}, and lets the policy autonomously discover effective internal strategies. (Instructor's aside: outcome-focused training also seems to work in children's development.)
+
+\subsection{Policy Innovation in a Nutshell}
+
+From a higher-level viewpoint, DeepSeek's RL and policy design innovate along three axes:
+
+\begin{enumerate}[label=\arabic*)]
+  \item \textbf{Critic-free, group-relative optimization.} GRPO replaces traditional value-function critics with group-based baselines, making large-scale RL on LLMs more memory-efficient and easier to implement.
+  \item \textbf{Outcome-focused reward for reasoning.} Rewards mainly depend on verifiable final answers and light formatting constraints, leaving the reasoning process flexible. This encourages the model to invent its own reasoning heuristics.
+  \item \textbf{Multi-stage RL + SFT pipeline.} Alternating between RL (to explore reasoning strategies) and SFT (to distill good behaviors into cleaner policies) yields models that are both strong reasoners and user-friendly assistants.
+\end{enumerate}
+
+\section{Putting a DeepSeek Block Together}
+
+For a single layer $\ell$ and token $t$ at position $i$, the forward flow is:
+
+\begin{enumerate}[label=\arabic*)]
+  \item \textbf{Input:} hidden state $h_t^{(\ell)}$.
+
+  \item \textbf{LayerNorm + MLA projections:}
+  \[
+  \hat{h}_t = \text{LN}\!\big(h_t^{(\ell)}\big).
+  \]
+  From $\hat{h}_t$ compute:
+  \begin{itemize}
+    \item per-head queries $q_t^{(h)}$,
+    \item contributions to latent keys/values $K_{\text{lat}}, V_{\text{lat}}$.
+  \end{itemize}
+
+  \item \textbf{RoPE application:}
+  \begin{itemize}
+    \item For the RoPE-aware subspace, apply $\text{RoPE}(\cdot, i)$ to queries and keys.
+    \item The NoPE subspace remains unrotated, preserving pure semantic content.
+  \end{itemize}
+
+  \item \textbf{Attention:}
+  \begin{itemize}
+    \item For each head, reconstruct $K^{(h)}, V^{(h)}$ from $K_{\text{lat}}, V_{\text{lat}}$.
+    \item Compute attention scores and outputs per head.
+    \item Concatenate head outputs and project to get $a_t$.
+  \end{itemize}
+
+  \item \textbf{First residual connection:}
+  \[
+  h_t^{(\ell,\text{attn})} = h_t^{(\ell)} + a_t.
+  \]
+
+  \item \textbf{LayerNorm + MoE:}
+  \[
+  \hat{u}_t = \text{LN}\!\big(h_t^{(\ell,\text{attn})}\big).
+  \]
+  The router scores experts on $\hat{u}_t$, picks top-$K$, and aggregates their FFN outputs into $m_t$.
+
+  \item \textbf{Second residual connection:}
+  \[
+  h_t^{(\ell+1)} = h_t^{(\ell,\text{attn})} + m_t.
+  \]
+
+  \item \textbf{Repeat for next layer.}
+\end{enumerate}
+
+Over many layers, MLA+RoPE handle efficient context integration, while the MoE provides high-capacity, specialized non-linear transformations; the RL training pipeline reshapes the overall policy to prioritize correct, readable, and aligned reasoning.
+
+\section{Summary}
+
+References: DeepSeek-AI, ``DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model,'' 2024, arXiv:\allowbreak 2405.04434; DeepSeek-AI, ``DeepSeek-V3 Technical Report,'' 2024, arXiv:\allowbreak 2412.19437; DeepSeek-AI, ``DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning,'' 2025, arXiv:\allowbreak 2501.12948; Z. Shao et al., ``DeepSeekMath,'' 2024, arXiv:\allowbreak 2402.03300 (the GRPO paper); J. Su et al., ``RoFormer,'' 2021, arXiv:\allowbreak 2104.09864.
+
+
+\begin{itemize}
+  \item \textbf{Multi-Head Latent Attention (MLA)} factorizes keys and values through a low-dimensional shared latent space. Only latent K/V are cached, and per-head K/V are reconstructed on demand, greatly reducing memory and bandwidth.
+  \item \textbf{RoPE} injects positional information by rotating 2D feature pairs in queries and keys with position-dependent angles. This yields a relative-position-aware similarity and supports long-context extrapolation.
+  \item \textbf{DeepSeekMoE} replaces dense FFNs with a sparse mixture-of-experts: a router chooses a few experts per token, enabling very high parameter capacity with limited per-token computation.
+  \item \textbf{GRPO-based RL} trains DeepSeek's policies using group-relative, critic-free policy optimization and simple, verifiable rewards. This encourages the emergence of strong reasoning behavior with efficient compute.
+  \item A \textbf{DeepSeek block} combines MLA+RoPE for attention and DeepSeekMoE for the FFN, wrapped in LayerNorm and residual connections, while the RL pipeline (GRPO + staged SFT) turns the base architecture into a reasoning-focused model like DeepSeek-R1.
+\end{itemize}
+
+\end{document}

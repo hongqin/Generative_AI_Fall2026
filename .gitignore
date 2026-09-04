@@ -1,0 +1,18 @@
+# LaTeX build artifacts (compiled PDFs are committed on purpose)
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+# Python / notebooks
+__pycache__/
+.ipynb_checkpoints/
+# OS
+.DS_Store

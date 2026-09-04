@@ -1,0 +1,327 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+% Additional definitions for this supplementary note
+
+\title{Supplementary Notes: Teacher-Student Distillation}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+
+\begin{quote}\small\itshape Note. The material in these supplementary notes was covered in the 16-week version of this course and is \textbf{optional reading} for the 8-week offering. It assumes the Week 6 lecture notes on transformers (self-attention, positional encoding, the transformer block, and next-token training) and is provided for students who want to see how those ideas are extended in current research systems.\end{quote}
+
+\tableofcontents
+\newpage
+
+\section{Conceptual Summary}
+
+Reference: G. Hinton, O. Vinyals, J. Dean, ``Distilling the Knowledge in a Neural Network,'' 2015, arXiv:\allowbreak 1503.02531.
+
+\begin{itemize}
+    \item \textbf{Goal:} Transfer a distribution $q_\phi(\cdot \mid c)$ learned by a large/accurate \emph{teacher} to a smaller/faster \emph{student} $p_\theta(\cdot \mid c)$.
+    \item \textbf{Core idea:} Make the student match the teacher's \emph{soft targets} (probability distributions, geometry distributions, or denoising trajectories), optionally combined with ground-truth \emph{hard targets} and/or \emph{intermediate feature} matching.
+    \item \textbf{Why it works:} Soft targets encode ``dark knowledge'' (relative similarities among outcomes) that hard labels don't convey; this often improves generalization and compresses large models effectively.
+\end{itemize}
+
+\section{Unified Objective}
+Let
+\begin{itemize}[nosep]
+    \item $c$ = context (input $x$, history $y_{<t}$, conditioning variables),
+    \item $o$ = predicted object (class, token, structure, noise, score, \ldots),
+    \item $q_\phi(o \mid c; T)$ = teacher distribution with temperature $T>1$,
+    \item $p_\theta(o \mid c; T)$ = student distribution.
+\end{itemize}
+
+We minimize:
+\[
+\min_{\theta} \;
+\E_{c \sim \mathcal{D}} \Big[
+    \alpha \, \ell_{\text{hard}}(c;\theta)
+    + \beta \, T^{2} \, D\!\big(q_\phi(\cdot \mid c;T)\,\|\,p_\theta(\cdot \mid c;T)\big)
+    + \gamma \, R_{\text{feat}}(c;\theta,\phi)
+    + \delta \, R_{\text{traj}}(c;\theta,\phi)
+\Big].
+\]
+
+\textbf{Components:}
+\begin{itemize}
+    \item $\ell_{\text{hard}}$: ground-truth loss (CE/NLL/MSE). Set $\alpha=0$ for pure distillation.
+    \item $D$: divergence (KL, reverse-KL, JS, Wasserstein, energy distance).
+    \item $R_{\text{feat}}$: hidden state matching, e.g. $\|h_T(c)-h_S(c)\|^2$.
+    \item $R_{\text{traj}}$: trajectory matching (diffusion timesteps, autoregressive rollouts).
+\end{itemize}
+
+\section{Canonical Instantiations}
+\subsection{Classifiers}
+\[
+\mathcal{L}
+= \alpha\,\mathrm{CE}(y, p_\theta(\cdot \mid c;1))
++ \beta\,T^{2}\,\KL\!\big(q_\phi(\cdot \mid c;T)\,\|\,p_\theta(\cdot \mid c;T)\big).
+\]
+
+\subsection{LLMs (token-level)}
+\[
+\mathcal{L}
+= \sum_{t}\Big[
+\alpha \, \big(-\log p_\theta(y_t \mid c)\big)
++ \beta \, T^{2} \,\KL\!\big(q_\phi(\cdot \mid c;T)\,\|\,p_\theta(\cdot \mid c;T)\big)
+\Big].
+\]
+
+\subsection{Protein Structure Prediction}
+\[
+\mathcal{L}
+= \beta\,D\!\big(q_\phi(R \mid \text{seq}), p_\theta(R \mid \text{seq})\big)
++ \gamma \, \|h_T - h_S\|^2
++ \alpha \,\ell_{\text{hard}} \; \text{(e.g., RMSD/MSE to ground truth)}.
+\]
+
+\subsection{Diffusion / Score-Based Models}
+\[
+\mathcal{L}
+= \E_{t,x_t}\!\left[
+\|\epsilon_T(x_t,t,c)-\epsilon_\theta(x_t,t,c)\|^2
+\right]
+\quad \text{or} \quad
+\E\!\left[\|s_T - s_\theta\|^2\right].
+\]
+
+\section{Proofs and Derivations}
+\subsection{KL and Cross-Entropy Equivalence}
+\[
+\KL(q\|p) = \sum_i q_i \log \frac{q_i}{p_i} = H(q,p) - H(q).
+\]
+Since $H(q)$ is constant in $p$, minimizing KL is equivalent to minimizing cross-entropy.
+
+\subsection{Temperature Scaling and $T^2$ Factor}
+Let $p = \text{softmax}(z/T)$.
+\[
+\frac{\partial \tilde{\mathcal{L}}}{\partial z_j}
+= \frac{1}{T}(p_j - q_j).
+\]
+Multiplying by $T^2$ rescales gradients:
+\[
+\frac{\partial (T^2 \tilde{\mathcal{L}})}{\partial z_j}
+= T(p_j - q_j).
+\]
+
+\subsection{Sequence-Level KL Decomposition (LLMs)}
+\[
+\KL\big(q(y_{1:T}\mid x)\,\|\,p(y_{1:T}\mid x)\big)
+= \sum_{t=1}^T
+\E_{q(y_{<t}\mid x)}
+\Big[\KL\big(q(y_t\mid y_{<t},x)\,\|\,p(y_t\mid y_{<t},x)\big)\Big].
+\]
+
+\subsection{MSE Minimizer is Conditional Expectation}
+For $o$, $c$:
+\[
+g^*(c) = \arg\min_g \E[\|o-g(c)\|^2] = \E[o\mid c].
+\]
+
+\subsection{Gradient View of Distillation}
+\[
+\nabla_\theta \mathcal{L}_{\text{distill}}
+= -\E_{c}\E_{o\sim q(\cdot\mid c)}\big[\nabla_\theta \log p_\theta(o\mid c)\big].
+\]
+This is maximum likelihood under teacher samples.
+
+\section{Practical Knobs}
+\begin{itemize}
+    \item Balance weights $\alpha,\beta,\gamma,\delta$.
+    \item Divergence choice: $\KL(q\|p)$ (mode covering) vs. $\KL(p\|q)$ (mode seeking).
+    \item Temperature $T$: higher $T$ softens targets; $T^2$ scaling stabilizes gradients.
+    \item Context choice $c$: teacher-forcing vs. student-rollout, diffusion schedules, etc.
+\end{itemize}
+
+\section{Pseudocode Sketches}
+\subsection{LLM Token-Wise Distillation}
+\begin{verbatim}
+for (x, y) in data:
+    with no_grad():
+        q_logits = teacher(x, y_inp=y[:-1])
+        q = softmax(q_logits / T)
+    p_logits = student(x, y_inp=y[:-1])
+    p = softmax(p_logits / T)
+
+    loss_hard = CE_hard(y, logits=student(x, y_inp=y[:-1]))
+    loss_soft = KL(q, p) * (T**2)
+    loss = alpha*loss_hard + beta*loss_soft
+    loss.backward(); opt.step()
+\end{verbatim}
+
+\subsection{Diffusion}
+\begin{verbatim}
+for x0 in data:
+    t ~ Uniform({1,...,T_steps})
+    eps ~ Normal(0, I)
+    x_t = forward_diffuse(x0, eps, t)
+
+    eps_T = teacher.predict_noise(x_t, t)
+    eps_S = student.predict_noise(x_t, t)
+
+    loss = mse(eps_S, eps_T)
+    loss.backward(); opt.step()
+\end{verbatim}
+
+\subsection{Protein Structures}
+\begin{verbatim}
+for seq, gt in data:
+    with no_grad():
+        q_bins, h_T = teacher(seq)
+    p_bins, h_S = student(seq)
+
+    loss_kl  = KL(q_bins, p_bins)
+    loss_feat = mse(h_S, h_T)
+    loss_gt   = rmsd(student_coords(seq), gt_coords)
+    loss = beta*loss_kl + gamma*loss_feat + alpha*loss_gt
+    loss.backward(); opt.step()
+\end{verbatim}
+
+\section*{One-Line Contrast with GANs}
+Teacher-student minimizes a fixed divergence to a teacher (cooperative),
+while GANs define an adversarial game with a discriminator-driven divergence.
+\section{Teacher-Student with RLHF (Fixed Reward Model)}
+\label{sec:rlhf}
+
+Reinforcement Learning with Human Feedback (RLHF) can be expressed in the
+teacher-student framework when the reward model is fixed.
+
+\subsection{Setup}
+\begin{itemize}
+    \item \textbf{Student (policy):} $\pi_\theta(y \mid x)$.
+    \item \textbf{Teacher (reward-shaped distribution):}
+    \[
+    \pi^*(y \mid x) \propto \pi_{\text{ref}}(y \mid x)\,
+    \exp\!\left(\tfrac{1}{\beta} r_\phi(x,y)\right),
+    \]
+    where $\pi_{\text{ref}}$ is a reference policy and $r_\phi$ is the fixed reward model.
+    \item \textbf{Goal:} Distill $\pi^*$ into $\pi_\theta$ by minimizing KL divergence.
+\end{itemize}
+
+\subsection{Objective}
+We maximize the reward-regularized objective:
+\[
+\max_{\theta} \;
+\E_{x\sim\mathcal{D},\, y\sim\pi_\theta(\cdot\mid x)}
+\Big[ r_\phi(x,y) - \beta \log \tfrac{\pi_\theta(y \mid x)}{\pi_{\text{ref}}(y \mid x)} \Big].
+\]
+
+Equivalently, the optimal distribution is
+\[
+\pi^*(y \mid x) \propto \pi_{\text{ref}}(y \mid x)\,\exp\!\left(\tfrac{1}{\beta}r_\phi(x,y)\right).
+\]
+
+The student then minimizes:
+\[
+\mathcal{L}_{\text{RLHF}}(\theta) = \KL\!\big(\pi^*(\cdot\mid x) \,\|\, \pi_\theta(\cdot\mid x)\big).
+\]
+
+\subsection{Gradient Derivation}
+Expanding the gradient:
+\[
+\nabla_\theta \mathcal{L}_{\text{RLHF}}
+= -\,\E_{y \sim \pi^*(\cdot\mid x)} \big[ \nabla_\theta \log \pi_\theta(y \mid x) \big].
+\]
+
+Since $\pi^*$ may be intractable to sample exactly, we use a policy-gradient estimator:
+\[
+\nabla_\theta J(\theta) =
+\E_{y \sim \pi_\theta(\cdot\mid x)} \Big[
+\big(r_\phi(x,y) - \beta \log \tfrac{\pi_\theta(y \mid x)}{\pi_{\text{ref}}(y \mid x)}\big)\,
+\nabla_\theta \log \pi_\theta(y \mid x) \Big].
+\]
+
+\subsection{Interpretation}
+\begin{itemize}
+    \item The \textbf{teacher} is the reward-shaped distribution $\pi^*$.
+    \item The \textbf{student} is $\pi_\theta$, trained to approximate $\pi^*$.
+    \item The \textbf{KL term} acts as a distillation regularizer, keeping $\pi_\theta$ close to $\pi_{\text{ref}}$.
+    \item This shows RLHF with a fixed reward model is a form of
+    \emph{teacher-student distillation}, where human preference (via $r_\phi$)
+    modifies the teacher distribution.
+\end{itemize}
+
+\subsection{Pseudocode (Fixed-Reward RLHF)}
+\begin{verbatim}
+# Inputs:
+#   D            : supervised prompts/distribution over x
+#   pi_ref       : frozen reference policy
+#   r_phi        : fixed reward model (trained from human preferences)
+#   pi_theta     : trainable policy (student)
+#   beta         : KL regularization strength
+#   eta_ent      : (optional) entropy bonus coefficient
+#   b(x)         : (optional) baseline/critic to reduce variance
+
+for epoch in 1..E:
+    for minibatch x ~ D:
+        # 1) Sample responses from current policy
+        y ~ pi_theta(. | x)                 # e.g., nucleus/temperature sampling
+
+        # 2) Compute rewards and logs
+        r = r_phi(x, y)                     # scalar reward
+        logp_theta = log pi_theta(y | x)
+        logp_ref   = log pi_ref(y | x)
+
+        # 3) Form KL-regularized advantage (reward shaping)
+        #    A = r - beta * (log pi_theta - log pi_ref) - b(x)
+        #    (b(x) can be moving average or learned value baseline)
+        A = r - beta * (logp_theta - logp_ref) - b(x)
+
+        # 4) Policy loss (REINFORCE-style), optional entropy bonus
+        loss_policy = - mean( A * logp_theta )
+        loss_entropy = - eta_ent * mean( entropy(pi_theta(. | x)) )
+        loss = loss_policy + loss_entropy
+
+        # 5) Optimize student policy
+        loss.backward()
+        optimizer.step(); optimizer.zero_grad()
+
+        # (Optional) Monitor forward KL to reference:
+        #   KL_forward = mean( KL(pi_theta(.|x) || pi_ref(.|x)) )
+        # (Optional) Use PPO-style clipping on ratio exp(logp_theta - logp_old)
+\end{verbatim}
+
+\paragraph{Notes.}
+\begin{itemize}[leftmargin=*]
+    \item The KL penalty appears inside the shaped advantage
+    $A = r_\phi - \beta(\log \pi_\theta - \log \pi_{\text{ref}})$,
+    which yields the same stationary point as minimizing
+    $\KL\!\big(\pi^* \| \pi_\theta\big)$.
+    \item A baseline $b(x)$ reduces gradient variance (e.g., moving average or learned value head).
+    \item Entropy bonus encourages exploration and prevents early collapse.
+    \item PPO clipping, adaptive $\beta$, or trust-region updates can further stabilize training.
+\end{itemize}
+
+\end{document}

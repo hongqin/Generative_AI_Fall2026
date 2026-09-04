@@ -1,0 +1,173 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+\usepackage{float}
+
+\title{Supplementary Notes: Group SHAP}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+\begin{center}\small\itshape Note: this topic was covered in the sixteen-week version of this course. It is provided here as optional reading and is not part of the eight-week core. Nothing in these notes is required for the weekly assignments or the course project.\end{center}
+\medskip
+
+\noindent
+SHAP (SHapley Additive exPlanations) values are a powerful tool for interpreting machine learning models by quantifying each feature's contribution to individual predictions. \textbf{Group SHAP values} extend this concept to evaluate the collective impact of feature \emph{groups} on model performance, including testing accuracy. Here is a detailed breakdown.
+
+\bigskip
+\hrule
+\bigskip
+
+\section{Group SHAP: Evaluating Feature Groups}
+
+\subsection{Concept and Computation}
+Group SHAP values measure the combined contribution of multiple features by treating them as a single unit. This approach is particularly useful when features are logically related (e.g., demographic variables, time-series lags) and their combined effect matters more than individual impacts.
+
+\begin{itemize}
+  \item \textbf{Mathematical Basis:}
+    For a feature group \(G\), its SHAP value is calculated as:
+    \[
+      \phi_{G} \;=\;
+      \sum_{M \subseteq F \setminus G}
+      \frac{|M|!\,\bigl(|F| - |M| - |G|\bigr)!}{|F|!} \;\Bigl[\,v(M \cup G)\;-\;v(M)\Bigr]
+    \]
+    where \(v(M)\) is the model's prediction using subset \(M\), and \(F\) is the full feature set \cite{jullum2021groupShapley}. Under certain independence or additivity conditions, summing individual SHAP values of all features in \(G\) yields exactly \(\phi_{G}\). Otherwise, one must compute group contributions directly.
+
+  \item \textbf{Tree-Based Computation:}
+    The \textbf{Tree Group SHAP} (also known as ``groupShapley'') algorithm efficiently computes group contributions for tree-based models (e.g., XGBoost) by leveraging the tree structure instead of enumerating all possible feature subsets. This optimization greatly reduces computational cost \cite{jullum2021groupShapley}.
+\end{itemize}
+
+\bigskip
+\hrule
+\bigskip
+
+\subsection{Applications in Testing Accuracy}
+Group SHAP helps identify which feature groups drive model performance on test data:
+\begin{itemize}
+  \item \textbf{Global Explanations:}
+    Aggregate group contributions across the test dataset to rank groups by their overall impact on predictions \cite{lundberg2017unified, jullum2021groupShapley}.
+  \item \textbf{Bias Detection:}
+    Analyze if specific groups (e.g., gender, age) disproportionately affect predictions, revealing potential biases in test results \cite{molnar2021interpretable, jullum2021groupShapley}.
+  \item \textbf{Model Simplification:}
+    Remove or merge low-impact groups to improve generalization and testing accuracy \cite{molnar2021interpretable, jullum2021groupShapley}.
+\end{itemize}
+
+\bigskip
+\hrule
+\bigskip
+
+\subsection{Significance Testing}
+To statistically validate a group's impact, \textbf{Group SHAP} incorporates hypothesis testing:
+\begin{itemize}
+  \item A three-cumulant chi-square approximation evaluates whether a group's contribution is statistically significant, even with skewed or sparse data \cite{jullum2021groupShapley}.
+  \item This ensures robust conclusions about a group's role in testing accuracy, avoiding false positives from random noise.
+\end{itemize}
+
+\bigskip
+\hrule
+\bigskip
+
+\section{Example Workflow}
+\begin{enumerate}
+  \item \textbf{Train a Model:} Use a tree-based algorithm (e.g., XGBoost).
+  \item \textbf{Compute Group SHAP:} Apply the Tree Group SHAP (``groupShapley'') implementation to quantify contributions of predefined feature groups \cite{jullum2021groupShapley}.
+  \item \textbf{Analyze Results:}
+  \begin{itemize}
+    \item High positive contributions indicate groups that improve accuracy.
+    \item Negative contributions suggest groups that may harm performance.
+    \item Use significance tests to filter out noise \cite{jullum2021groupShapley}.
+  \end{itemize}
+  \item \textbf{Optimize:} Refine the model by prioritizing significant groups.
+\end{enumerate}
+
+\bigskip
+\hrule
+\bigskip
+
+\section{Comparison: Individual vs.\ Group SHAP}
+\begin{table}[H]
+  \centering\small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{@{} l l l @{}}
+    \toprule
+    \textbf{Aspect}               & \textbf{Individual SHAP}                     & \textbf{Group SHAP (groupShapley)}                   \\
+    \midrule
+    Focus            & Single-feature contributions        & Collective group contributions            \\
+    Use Case         & Debugging specific predictions      & Structured data, regulatory reporting     \\
+    Computation Cost & Lower                               & Higher (but optimized via Tree Group SHAP) \\
+    Interpretability & Granular but potentially fragmented & Holistic, aligned with domain knowledge   \\
+    \bottomrule
+  \end{tabular}
+  \caption{Comparison between Individual SHAP and Group SHAP.}
+  \label{tab:comparison}
+\end{table}
+
+\bigskip
+\hrule
+\bigskip
+
+\noindent
+In summary, \textbf{Group SHAP values} provide a structured way to evaluate how feature groups influence testing accuracy, combining interpretability with statistical rigor. This is especially valuable in domains like healthcare or finance, where feature groups (e.g., lab results, economic indicators) must be analyzed collectively.
+
+\bigskip
+\hrule
+\bigskip
+
+\begin{thebibliography}{9}
+  \bibitem{lundberg2017unified}
+    Lundberg, S. M., \& Lee, S. I. (2017).
+    A Unified Approach to Interpreting Model Predictions.
+    \emph{Advances in Neural Information Processing Systems}.
+
+  \bibitem{molnar2021interpretable}
+    Molnar, C. (2021).
+    \emph{Interpretable Machine Learning}.
+
+  \bibitem{jullum2021groupShapley}
+    Jullum, M., Redelmeier, A., \& Aas, K. (2021).
+    groupShapley: Efficient prediction explanation with Shapley values for feature groups.
+    In \emph{International Cross-Domain Conference for Machine Learning and Knowledge Extraction (CD-MAKE)},
+    Lecture Notes in Computer Science, vol. 12844, Springer.
+
+  \bibitem{jullum2021arxiv}
+    Jullum, M., Redelmeier, A., \& Aas, K. (2021).
+    groupShapley: Efficient prediction explanation with Shapley values for feature groups.
+    arXiv:2106.12228.
+
+  \bibitem{aas2019dependent}
+    Aas, K., Jullum, M., \& L\o land, A. (2021).
+    Explaining individual predictions when features are dependent: More accurate approximations to Shapley values.
+    \emph{Artificial Intelligence}, 298, 103502. arXiv:1903.10464.
+\end{thebibliography}
+
+\end{document}

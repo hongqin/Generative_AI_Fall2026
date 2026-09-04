@@ -1,0 +1,468 @@
+% Shared preamble for the Generative AI (CS 782/882, Fall 2026) lecture notes.
+% Each weekNN-notes.tex file inlines this block so it compiles on its own.
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\KL}{\mathrm{KL}}
+\newcommand{\given}{\,\vert\,}
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible}
+
+% ---- Week 5 additions (after the shared preamble) ----
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{soul}
+\sethlcolor{yellow}
+\setlength\emergencystretch{3em}
+
+\title{Week 5 Lecture Notes: Diffusion Models}
+\author{Hong Qin, Old Dominion University}
+\date{Fall 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+\noindent\textbf{How to read these notes.} Each topic opens with a plain-English summary, then gives the mathematics, then closes with a plain-English payoff. Topics 1 through 3 carry the derivations behind the Denoising Diffusion Model (DDM) implemented in Foster's \texttt{01\_ddm} notebook (\texttt{ddm.ipynb}); the code names in \texttt{typewriter} font refer to that notebook so you can trace each symbol into the TensorFlow implementation. Topic 4 has no mathematics; it is the project-midpoint checklist for the Mid-Project Report.
+
+% =====================================================================
+\section{Topic 1: Forward Noising and Reverse Denoising}
+% =====================================================================
+
+\subsection{Plain-English summary}
+
+The diffusion idea is almost cheekily simple. Instead of trying to learn how data is generated directly (the VAE, GAN, and autoregressive approaches), define a fixed \emph{destruction} process that gradually adds noise to data until it becomes pure Gaussian noise; then train a neural network to learn the inverse, step by step. Sampling generates new data by starting from pure noise and running the learned reverse process. The forward process has no learnable parameters and is trivial to write down. The reverse process is approximately Gaussian (when the per-step noise is small), and that is what the neural network learns. This topic sets up the forward and reverse Markov chains; Topic 2 derives the training objective.
+
+\subsection{Notation and implementation map}
+
+The table below records the symbols used in the derivations and how they appear in the notebook implementation.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.35\textwidth} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Mathematical symbol} & \textbf{Code realization in \texttt{ddm.ipynb}} \\
+\midrule
+$\mathbf{x}_0$ (clean data sample) & \texttt{images} after normalization via \texttt{self.normalizer} \\
+$\mathbf{x}_t$ (noisy sample) & \texttt{noisy\_images} constructed in \texttt{train\_step} \\
+$\boldsymbol{\epsilon}$ (Gaussian noise) & \texttt{noises} drawn with \texttt{tf.random.normal} \\
+$t$ (diffusion step) & Continuous time \texttt{diffusion\_times} sampled in $[0,1]$ \\
+$\beta_t$ (noise variance) & Implicit in \texttt{noise\_rates} where $\beta_t = 1 - \alpha_t$ \\
+$\alpha_t$ (signal variance) & $\alpha_t = 1 - \beta_t$ with $\sqrt{\alpha_t}$ returned as \texttt{signal\_rates} \\
+$\bar{\alpha}_t$ (cumulative signal rate) & Product tracked by \texttt{signal\_rates}$^2$ inside schedules \\
+$\boldsymbol{\epsilon}_\theta$ (noise predictor) & U\!-Net \texttt{unet} producing \texttt{pred\_noises} \\
+$\hat{\mathbf{x}}_0$ (denoised prediction) & \texttt{pred\_images} computed in \texttt{denoise} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textit{The notebook represents diffusion time as a continuous scalar between $0$ (data) and $1$ (pure noise); schedules such as \texttt{offset\_cosine\_diffusion\_schedule} map these times to the discrete coefficients used below.}
+
+\subsection{Forward (diffusion) process}
+
+We define a fixed Markov chain that gradually adds Gaussian noise to data samples $\mathbf{x}_0$:
+\begin{equation}
+q(\mathbf{x}_t \mid \mathbf{x}_{t-1}) = \mathcal{N}\!\Big(\mathbf{x}_t;\, \sqrt{1-\beta_t}\,\mathbf{x}_{t-1},\, \beta_t \mathbf{I}\Big), \qquad t = 1, \dots, T.
+\label{eq:forward-step}
+\end{equation}
+
+\textit{At each time step $t$, we perturb the signal from the previous step by shrinking it and adding Gaussian noise with variance $\beta_t$. In code, the diffusion schedules return \texttt{signal\_rates} $= \sqrt{1-\beta_t}$ and \texttt{noise\_rates} $= \sqrt{\beta_t}$ that are applied to the tensors \texttt{images} and \texttt{noises} to assemble \texttt{noisy\_images}.}
+
+The variances $\beta_1, \dots, \beta_T$ form the \emph{noise schedule}, a fixed hyperparameter (typically a linear or cosine schedule with $T$ around 1000 steps). By step $T$, almost all signal is gone and $\mathbf{x}_T$ is approximately $\mathcal{N}(\mathbf{0}, \mathbf{I})$.
+
+The cumulative effect of the diffusion schedule can be written in closed form:
+\begin{equation}
+q(\mathbf{x}_t \mid \mathbf{x}_0) = \mathcal{N}\!\Big(\mathbf{x}_t;\, \sqrt{\bar{\alpha}_t}\,\mathbf{x}_0,\, (1-\bar{\alpha}_t) \mathbf{I}\Big), \qquad \bar{\alpha}_t = \prod_{s=1}^t (1-\beta_s).
+\label{eq:forward-marginal}
+\end{equation}
+
+\textit{After $t$ steps, the noisy sample remains correlated with the original $\mathbf{x}_0$ through the product $\bar{\alpha}_t$, while the variance accumulates to $1-\bar{\alpha}_t$. The helper schedules \texttt{linear}, \texttt{cosine}, and \texttt{offset\_cosine\_diffusion\_schedule} compute these quantities and expose $\sqrt{\bar{\alpha}_t}$ as \texttt{signal\_rates}.}
+
+Using this form, we can sample $\mathbf{x}_t$ directly from $\mathbf{x}_0$ with a single draw of standard Gaussian noise $\boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$:
+\begin{equation}
+\mathbf{x}_t = \sqrt{\bar{\alpha}_t}\,\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\,\boldsymbol{\epsilon}.
+\label{eq:reparam}
+\end{equation}
+
+\textit{We can generate any diffusion step without simulating all intermediate steps by scaling the clean data and adding appropriately scaled noise. The training loop mirrors this rule through \texttt{noisy\_images =} \texttt{signal\_rates * images} \texttt{+ noise\_rates * noises}.}
+
+\begin{remark}[Why the closed form matters]
+Training a diffusion model means picking a random $t$, generating $\mathbf{x}_t$ from $\mathbf{x}_0$ by the one-shot formula \eqref{eq:reparam}, and learning to predict the noise that was added. There is no need to simulate the full forward chain for each training example, which would be catastrophically slow at $T \approx 1000$.
+\end{remark}
+
+\subsection{Reverse (denoising) process}
+
+The reverse Markov chain is what generates new data. We start from $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ and walk backward to $\mathbf{x}_0$. The key fact is that, for small $\beta_t$ (which is why $T$ is large), the true reverse conditional $q(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$ is approximately Gaussian. We can therefore approximate the reverse-time Markov chain with learned Gaussian transitions parameterized by $\boldsymbol{\epsilon}_\theta$:
+\begin{equation}
+p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t) = \mathcal{N}\!\Big(\mathbf{x}_{t-1};\, \mu_\theta(\mathbf{x}_t, t),\, \sigma_t^2 \mathbf{I}\Big).
+\label{eq:reverse-step}
+\end{equation}
+
+\hl{\textit{We treat denoising as a Markov chain that sequentially removes noise, using the neural network to set the mean of each Gaussian step. The \texttt{reverse\_diffusion} loop implements these updates while reusing the same schedule-derived variances at every iteration.}}
+
+For the DDPM parameterization, the mean is constructed from the noise prediction $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ (the network trained in Topic 2):
+\begin{equation}
+\mu_\theta(\mathbf{x}_t, t) = \frac{1}{\sqrt{\alpha_t}}\!\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1-\bar{\alpha}_t}}\,\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)\right),
+\qquad
+\sigma_t^2 = \frac{1-\bar{\alpha}_{t-1}}{1-\bar{\alpha}_t}\,\beta_t.
+\label{eq:reverse-mean}
+\end{equation}
+
+\textit{We first estimate the clean signal $\hat{\mathbf{x}}_0$ by subtracting the predicted noise, then compute the posterior mean of $\mathbf{x}_{t-1}$ given $\mathbf{x}_t$. The variance is fixed by the diffusion schedule. In code, \texttt{denoise} outputs \texttt{pred\_images} and \texttt{pred\_noises}, which \texttt{reverse\_diffusion} blends with the next-step \texttt{signal\_rates} and \texttt{noise\_rates} to realize this equation.}
+
+In practice the variance $\sigma_t^2$ is fixed to a constant schedule (the original DDPM default), leaving only the mean to be learned. Topic 2 reformulates ``learn the mean of the reverse Gaussian'' into ``learn the noise that was added in the forward step,'' which is what the actual network does. Topic 3 gives the full sampling loop.
+
+\subsection{The architectural choice: a time-conditional U-Net}
+
+The diffusion network has to map a noisy image $\mathbf{x}_t$ (and a timestep index $t$) to a same-shape output, either the predicted mean or the predicted noise depending on the parameterization. The standard architecture is a \textbf{U-Net} (Ronneberger, Fischer, and Brox, 2015; arXiv:1505.04597) with timestep embeddings injected at each level. U-Nets were originally invented for biomedical image segmentation; they happen to be well suited to diffusion because they preserve spatial structure while building hierarchical features. Foster's \texttt{01\_ddm} notebook uses a small U-Net implementation (\texttt{unet}), with the noise rate passed through a sinusoidal embedding as the time signal.
+
+\subsection{Payoff}
+
+Two Markov chains, one fixed and one learned. The forward chain, equations \eqref{eq:forward-step} to \eqref{eq:reparam}, needs no training at all and lets us manufacture a noisy sample at any noise level with one line of code. The reverse chain, equations \eqref{eq:reverse-step} and \eqref{eq:reverse-mean}, is a sequence of Gaussians whose means are set by a neural network. Everything else in this module (the loss, the samplers, the guidance tricks) is about how to fit that network and how to run the reverse chain efficiently.
+
+\paragraph{Questions to consider.}
+\begin{itemize}[leftmargin=1.5em]
+\item The forward process has no learnable parameters. Why is that surprising for a generative model, and why does it work anyway?
+\item The closed-form marginal lets you jump from $\mathbf{x}_0$ directly to any $\mathbf{x}_t$. Why is this critical for training to be feasible at $T \approx 1000$?
+\item The reverse chain is parameterized as a Gaussian because the per-step noise is small. What goes wrong, mathematically, if you make $\beta_t$ large?
+\end{itemize}
+
+% =====================================================================
+\section{Topic 2: Training Objectives for Diffusion Models}
+% =====================================================================
+
+\subsection{Plain-English summary}
+
+Topic 1 set up the forward and reverse chains and said ``the neural network learns the reverse mean.'' This topic derives what the network actually optimizes. The variational view gives an evidence lower bound (ELBO) across all $T$ timesteps; in principle that is what you should maximize. Ho, Jain, and Abbeel (2020) found that a vastly simpler loss, just predict the noise that was added in the forward step at a random $t$, works as well or better. That one insight is the reason diffusion models work in practice. We walk through the derivation and the parameterization choice, then note the connection to score matching that ties diffusion to the broader score-based family.
+
+\subsection{The variational view: where the loss comes from}
+
+The data log-likelihood under the model is
+\begin{equation}
+\log p_\theta(\mathbf{x}_0) = \log \int p_\theta(\mathbf{x}_0, \mathbf{x}_1, \dots, \mathbf{x}_T)\, d\mathbf{x}_{1:T},
+\qquad
+p_\theta(\mathbf{x}_{0:T}) = p(\mathbf{x}_T)\prod_{t=1}^{T} p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t),
+\end{equation}
+which is intractable. By the same logic as the VAE (Week 2), we obtain an ELBO over the whole trajectory using the fixed forward process $q$ as the variational distribution:
+\begin{equation}
+\log p_\theta(\mathbf{x}_0) \;\geq\; \E_{q(\mathbf{x}_{1:T}\mid \mathbf{x}_0)}\!\left[ \log \frac{p_\theta(\mathbf{x}_{0:T})}{q(\mathbf{x}_{1:T} \mid \mathbf{x}_0)} \right] \;=:\; -\mathcal{L}_{\text{ELBO}}.
+\label{eq:elbo}
+\end{equation}
+
+Because $q$ is Markov and Gaussian, this bound can be rearranged (Sohl-Dickstein et al., 2015; Ho et al., 2020) into a sum of per-timestep terms:
+\begin{equation}
+\begin{aligned}
+\mathcal{L}_{\text{ELBO}}
+&= \underbrace{\KL\big(q(\mathbf{x}_T\mid\mathbf{x}_0)\,\|\,p(\mathbf{x}_T)\big)}_{L_T}
++ \sum_{t=2}^{T} \underbrace{\E_q\Big[\KL\big(q(\mathbf{x}_{t-1}\mid\mathbf{x}_t,\mathbf{x}_0)\,\|\,p_\theta(\mathbf{x}_{t-1}\mid\mathbf{x}_t)\big)\Big]}_{L_{t-1}} \\
+&\qquad \underbrace{-\;\E_q\big[\log p_\theta(\mathbf{x}_0\mid\mathbf{x}_1)\big]}_{L_0}.
+\end{aligned}
+\label{eq:elbo-decomp}
+\end{equation}
+$L_T$ has no learnable parameters (the forward process ends at approximately pure noise regardless of $\theta$), and $L_0$ is a reconstruction term. The work is in the middle terms, each of which compares the model's reverse step to the \emph{true} reverse conditional given $\mathbf{x}_0$. That conditional is Gaussian with a closed-form mean and variance:
+\begin{equation}
+\begin{aligned}
+q(\mathbf{x}_{t-1}\mid\mathbf{x}_t,\mathbf{x}_0) &= \mathcal{N}\big(\mathbf{x}_{t-1};\,\tilde{\mu}_t(\mathbf{x}_t,\mathbf{x}_0),\,\tilde{\beta}_t\mathbf{I}\big), \\
+\tilde{\mu}_t(\mathbf{x}_t,\mathbf{x}_0) &= \frac{\sqrt{\bar{\alpha}_{t-1}}\,\beta_t}{1-\bar{\alpha}_t}\,\mathbf{x}_0 + \frac{\sqrt{\alpha_t}\,(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\,\mathbf{x}_t,
+\qquad
+\tilde{\beta}_t = \frac{1-\bar{\alpha}_{t-1}}{1-\bar{\alpha}_t}\,\beta_t.
+\end{aligned}
+\label{eq:posterior}
+\end{equation}
+Note that $\tilde{\beta}_t$ is exactly the $\sigma_t^2$ used in \eqref{eq:reverse-mean}. The KL divergence between two Gaussians with the same covariance $\sigma_t^2\mathbf{I}$ reduces to a squared distance between their means, so
+\begin{equation}
+L_{t-1} = \E_q\!\left[\frac{1}{2\sigma_t^2}\,\big\|\tilde{\mu}_t(\mathbf{x}_t,\mathbf{x}_0) - \mu_\theta(\mathbf{x}_t,t)\big\|^2\right] + \text{const}.
+\label{eq:kl-mean}
+\end{equation}
+\textit{In words: the network only needs to match the mean of the true reverse step, and it is scored by mean-squared error.}
+
+\subsection{The DDPM trick: parameterize the mean as noise prediction}
+
+Substituting the reparameterization \eqref{eq:reparam}, $\mathbf{x}_0 = (\mathbf{x}_t - \sqrt{1-\bar{\alpha}_t}\,\boldsymbol{\epsilon})/\sqrt{\bar{\alpha}_t}$, into $\tilde{\mu}_t$ gives the optimal mean in terms of the noise that was actually added:
+\begin{equation}
+\tilde{\mu}_t(\mathbf{x}_t,\mathbf{x}_0) = \frac{1}{\sqrt{\alpha_t}}\!\left(\mathbf{x}_t - \frac{\beta_t}{\sqrt{1-\bar{\alpha}_t}}\,\boldsymbol{\epsilon}\right).
+\label{eq:mu-star}
+\end{equation}
+Ho et al.\ reparameterize: instead of having the network output $\mu_\theta$ directly, have it predict $\boldsymbol{\epsilon}$. Calling the prediction $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ and plugging it into \eqref{eq:mu-star} yields precisely the mean formula \eqref{eq:reverse-mean} from Topic 1. Under this parameterization, the squared mean difference in \eqref{eq:kl-mean} becomes a weighted squared difference between $\boldsymbol{\epsilon}$ and $\boldsymbol{\epsilon}_\theta$. Dropping the timestep-dependent weight (an empirical choice that improves sample quality) gives the simplified objective.
+
+\subsection{Training objective (noise prediction)}
+
+The model $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ is trained to \hl{predict the noise injected at step $t$}. The simplified objective derived for DDPMs is a \hl{mean-squared error between the true noise and the model prediction}:
+\begin{equation}
+\mathcal{L}_{\text{simple}} = \mathbb{E}_{\substack{t \sim \mathcal{U}([1, T]) \\ \mathbf{x}_0 \sim q \\ \boldsymbol{\epsilon} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})}} \!\Big[\,\lVert \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t) \rVert_2^2 \Big],
+\qquad
+\mathbf{x}_t = \sqrt{\bar{\alpha}_t}\,\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\,\boldsymbol{\epsilon}.
+\label{eq:lsimple}
+\end{equation}
+
+In the notebook this expectation is approximated with per-batch samples while using \texttt{losses.mean\_absolute\_error}; both L1 and L2 losses share the same minimizer when the data are Gaussian, so the theoretical objective remains intact.
+
+\textit{We pick a random time step, draw a clean data example, add noise to obtain $\mathbf{x}_t$, and train the network to recover the exact noise that was added. In the notebook, \texttt{train\_step} samples \texttt{diffusion\_times} uniformly in $[0,1]$, constructs \texttt{noisy\_images}, and penalizes the difference between \texttt{noises} and the U\!-Net predictions \texttt{pred\_noises}.}
+
+This objective is equivalent (up to constant terms) to optimizing the variational lower bound on the data log-likelihood derived in the original DDPM formulation, but it is far easier to implement and yields the same gradients for $\theta$.
+
+\begin{remark}[Why this works conceptually]
+Predicting the noise is equivalent to predicting where the clean signal lives in $\mathbf{x}_t$, because $\mathbf{x}_0$ and $\boldsymbol{\epsilon}$ are linearly related given $\mathbf{x}_t$ (equation \eqref{eq:reparam}). The network is implicitly learning the ``denoising direction'' at every noise level. Sampling uses these denoising directions to walk a noisy point back to the data manifold step by step.
+\end{remark}
+
+\subsection{The score-matching connection}
+
+Song and Ermon (2019; arXiv:1907.05600) developed a parallel line of work called \textbf{score-based generative modeling}: instead of training a noise predictor, train a \emph{score network} that estimates $\nabla_{\mathbf{x}} \log p_t(\mathbf{x})$, the gradient of the log-density of the noise-perturbed distribution at noise level $t$. The DDPM noise-prediction network is an estimator of exactly this score, up to a known scaling. From \eqref{eq:forward-marginal}, $\nabla_{\mathbf{x}_t}\log q(\mathbf{x}_t\mid\mathbf{x}_0) = -\boldsymbol{\epsilon}/\sqrt{1-\bar{\alpha}_t}$, so
+\begin{equation}
+\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t) \;\approx\; -\sqrt{1 - \bar{\alpha}_t}\; \nabla_{\mathbf{x}_t} \log p_t(\mathbf{x}_t).
+\label{eq:score}
+\end{equation}
+Song et al.\ (2021; arXiv:2011.13456) put DDPM, score matching, and the continuous-time limit into a single framework based on stochastic differential equations (SDEs). The forward process becomes an SDE; the reverse process is the time-reversed SDE; both DDPM and score-based methods are discretizations of the same continuous-time formulation. This unification is the modern theoretical view of diffusion, and it is the bridge to the flow-based models compared in Topic 3. For practical implementation purposes, the DDPM noise-prediction loss \eqref{eq:lsimple} is what you almost always implement.
+
+\subsection{Variance: predict it or fix it?}
+
+The simplified loss only trains the mean of the reverse Gaussian; the variance is typically fixed to a constant schedule (either $\beta_t$ or $\tilde{\beta}_t$, which the original paper found to give similar quality). Nichol and Dhariwal (2021; arXiv:2102.09672) showed that learning the variance further improves sample quality, especially at fewer sampling steps. Foster's notebook uses the fixed-variance choice for simplicity.
+
+\subsection{Payoff}
+
+The principled objective is an ELBO with $T$ KL terms, equation \eqref{eq:elbo-decomp}. Every one of those KL terms collapses to a mean-squared error, and a change of variables turns ``match the reverse mean'' into ``predict the noise.'' What the network ends up solving is a regression problem: given a noisy image and its noise level, output the noise. That is the entire training loop in \texttt{train\_step}, and it is the reason diffusion models are stable to train in a way GANs are not.
+
+\paragraph{Questions to consider.}
+\begin{itemize}[leftmargin=1.5em]
+\item The simplified loss drops the timestep weights $1/(2\sigma_t^2)$ and related factors from \eqref{eq:kl-mean} but works as well or better. What might that tell you about the structure of the original ELBO?
+\item Predicting noise is equivalent to predicting the clean signal given $\mathbf{x}_t$ and $t$. Why is the noise parameterization preferred over predicting $\mathbf{x}_0$ directly?
+\item The score-matching framing says diffusion models estimate $\nabla \log p_t(\mathbf{x})$ at each noise level. What does it mean intuitively that the gradient of the log-density is the ``direction to move toward the data''?
+\end{itemize}
+
+% =====================================================================
+\section{Topic 3: Sampling Quality, Cost, and Controllability}
+% =====================================================================
+
+\subsection{Plain-English summary}
+
+A trained diffusion model is a function that, given a noisy sample $\mathbf{x}_t$ and a timestep $t$, predicts the noise that was added. Sampling means using that function to walk a noisy starting point back to a clean sample, one step at a time. The straightforward way (DDPM sampling) needs hundreds to thousands of steps; DDIM and other tricks reduce this dramatically. Conditioning (text-to-image, class-to-image) is done by passing the condition into the noise network and using classifier-free guidance to amplify its effect. The trick that makes Stable Diffusion fit on consumer hardware is to run the entire diffusion in a learned latent space rather than in pixel space. This topic covers all of these, and closes by placing diffusion next to its deterministic cousins, normalizing flows.
+
+\subsection{DDPM sampling: the slow but clean version}
+
+Sampling proceeds from pure noise $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ and iterates the reverse transitions \eqref{eq:reverse-step} until $t = 0$. For $t = T, T-1, \dots, 1$:
+\begin{enumerate}
+  \item Draw $\mathbf{z} \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$ if $t > 1$; otherwise set $\mathbf{z} = \mathbf{0}$.
+  \item Compute the predicted mean $\mu_\theta(\mathbf{x}_t, t)$ from $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ using \eqref{eq:reverse-mean}.
+  \item Sample $\mathbf{x}_{t-1} = \mu_\theta(\mathbf{x}_t, t) + \sigma_t \mathbf{z}$.
+\end{enumerate}
+
+This is stochastic (each step injects fresh noise $\mathbf{z}$) and follows the variational training derivation exactly. With $T = 1000$, generating one sample requires 1000 forward passes through the U-Net. For Fashion-MNIST on a CPU this is a couple of minutes per sample; for a $512\times512$ image on a GPU, a minute or two per sample. Slow. The notebook's \texttt{reverse\_diffusion} loop implements this iteration with a user-chosen number of \texttt{diffusion\_steps}, which is what the assignment's sampling-step ablation varies.
+
+\subsection{DDIM sampling: fast and deterministic}
+
+Song, Meng, and Ermon (2021; arXiv:2010.02502) showed that the same trained network can drive a deterministic sampler that takes far fewer steps:
+\begin{equation}
+\mathbf{x}_{t-1} = \sqrt{\bar{\alpha}_{t-1}}\; \underbrace{\left(\frac{\mathbf{x}_t - \sqrt{1 - \bar{\alpha}_t}\, \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)}{\sqrt{\bar{\alpha}_t}}\right)}_{\text{predicted } \hat{\mathbf{x}}_0} \;+\; \sqrt{1 - \bar{\alpha}_{t-1}}\; \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t).
+\label{eq:ddim}
+\end{equation}
+Practically: it predicts $\hat{\mathbf{x}}_0$ from $\mathbf{x}_t$ using the noise network (this is exactly \texttt{pred\_images} in \texttt{denoise}), then re-noises it to the previous timestep using the same predicted noise. No fresh $\mathbf{z}$ is drawn, so the whole update is deterministic given $\mathbf{x}_T$. The breakthrough is that you can use a \emph{subset} of the original timesteps (for example 50 steps spaced through the original 1000) and get qualitatively similar samples to full DDPM. Roughly a 20$\times$ speedup with little quality loss; this is the standard choice for production diffusion sampling. Foster's \texttt{reverse\_diffusion} is written in exactly this predict-then-renoise form.
+
+\begin{remark}
+DDIM and DDPM are two ends of a family of samplers with a tunable stochasticity parameter; equation \eqref{eq:ddim} is the fully deterministic end. In the continuous-time view of Topic 2 it is a discretization of the \emph{probability flow ODE}, which is the link to normalizing flows discussed below.
+\end{remark}
+
+\subsection{Conditioning and classifier-free guidance}
+
+Conditioning a diffusion model on a label, a text prompt, or an image is straightforward: pass the condition $\mathbf{y}$ into the noise network as an extra input, so the network becomes $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t, \mathbf{y})$. Same training loss, same sampling procedure, with the condition threaded through.
+
+\textbf{Classifier-free guidance} (Ho and Salimans, 2022; arXiv:2207.12598) is the standard trick to amplify the effect of the condition. During training, occasionally drop the condition (set $\mathbf{y} = \varnothing$ with probability around 10\%), so the network learns to predict noise both with and without conditioning. At sampling time, combine the two predictions:
+\begin{equation}
+\tilde{\boldsymbol{\epsilon}}_\theta(\mathbf{x}_t, t, \mathbf{y}) = \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t, \varnothing) + w\,\big( \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t, \mathbf{y}) - \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t, \varnothing) \big).
+\label{eq:cfg}
+\end{equation}
+The \textbf{guidance scale} $w$ controls how strongly samples adhere to the condition: $w = 1$ is plain conditional sampling; $w > 1$ (values near 7.5 are typical for Stable Diffusion) pushes samples to align more strongly with $\mathbf{y}$ at the cost of some diversity. In score terms, \eqref{eq:cfg} amplifies the component of the score that points toward $\mathbf{y}$. Every modern text-to-image system uses some version of classifier-free guidance.
+
+\subsection{Latent diffusion: the Stable Diffusion trick}
+
+Doing diffusion in pixel space is expensive: a $512\times512\times3$ image has about 786{,}000 dimensions, and the U-Net must be run over that for hundreds of steps. \textbf{Latent diffusion} (Rombach et al., 2022; arXiv:2112.10752) sidesteps this:
+\begin{enumerate}[leftmargin=1.5em]
+\item Train a VAE (Week 2) to encode images into a much smaller latent space (for example $64\times64\times4$).
+\item Run the diffusion process in the latent space, not on raw pixels.
+\item At sampling time, run the diffusion to get a latent, then decode with the VAE decoder to get the image.
+\end{enumerate}
+The latent space is about 48$\times$ smaller than pixel space, so the diffusion U-Net is dramatically cheaper. Image quality is preserved because the VAE captures the perceptually relevant structure; the diffusion model only has to learn the latent distribution. The encoder and decoder are trained once and frozen; the diffusion model trains on top.
+
+\subsection{Sampling cost compared to other families}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Family} & \textbf{Sampling cost (per sample)} & \textbf{Parallelizable across positions?} \\
+\midrule
+VAE & One decoder forward pass & Yes \\
+GAN & One generator forward pass & Yes \\
+Autoregressive & $O(N)$ sequential passes & No (each position depends on prior ones) \\
+Diffusion (DDPM) & $O(T)$ sequential passes, $T \approx 1000$ & Yes within each step (the U-Net is parallel); not across steps \\
+Diffusion (DDIM) & $O(T')$ sequential passes, $T' \approx 50$ & Same as DDPM \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Diffusion is slower than VAE and GAN at sampling time but faster than autoregressive models on long sequences (a $1024\times1024$ image has a million pixels; an autoregressive PixelCNN would need a million passes, diffusion needs 50 to 1000). This is one of the main practical reasons diffusion took over high-resolution image generation.
+
+\subsection{Normalizing flows, continuous flows, and diffusion: a comparative overview}
+
+Diffusion models are the stochastic sibling of normalizing flows, a model family covered in the 16-week version of this course (see the supplementary notes in \texttt{notes/supplementary/}). The comparison is worth a page because the probability flow ODE behind DDIM makes diffusion a special case of continuous flows.
+
+\paragraph{Normalizing flows (NF).}
+Start from a simple base distribution $z \sim p_Z(z)$ and map it to data space via a bijective function $x = f_\theta(z)$.
+\begin{equation}
+p_X(x) = p_Z(f_\theta^{-1}(x)) \cdot \left|\det J_{f_\theta^{-1}}(x)\right|
+\label{eq:nf}
+\end{equation}
+where $J_{f_\theta}$ is the Jacobian.
+\textit{Intuition.} NFs are like plumbing pipes: probability mass flows through a sequence of reversible pipes. Each pipe reshapes the mass without losing any, and the volume change is tracked via $\det J$.
+
+\paragraph{Continuous normalizing flows (CNF).}
+Instead of discrete pipes, CNFs evolve continuously in time via an ODE:
+\begin{equation}
+\frac{dz}{dt} = g_\theta(z,t), \qquad z(0)\sim p_Z.
+\label{eq:cnf-ode}
+\end{equation}
+The log-density evolves as
+\begin{equation}
+\frac{d}{dt}\log p(z(t)) = - \mathrm{Tr}\!\left(\frac{\partial g_\theta}{\partial z}\right).
+\label{eq:cnf-log}
+\end{equation}
+\textit{Intuition.} CNFs are like watching a drop of ink swirl in water: mass is transported smoothly over time. Instead of discrete steps, the transformation is a continuous fluid flow.
+
+\paragraph{Diffusion models (DM).}
+Train on a forward stochastic process that gradually adds Gaussian noise:
+\begin{equation}
+dx = -\tfrac{1}{2}\beta(t) x \, dt + \sqrt{\beta(t)}\, dW_t,
+\label{eq:forward-sde}
+\end{equation}
+with learned reverse dynamics. Equivalently, there exists a deterministic \emph{probability flow ODE}:
+\begin{equation}
+\frac{dx}{dt} = f_\theta(x,t), \quad \text{with the same marginal densities as the SDE.}
+\label{eq:dm-ode}
+\end{equation}
+\textit{Intuition.} Diffusion corrupts data into pure noise (forward), and the model learns to reverse it (denoising). It is like watching an image blur into static, and then teaching a network how to play the movie backward.
+
+\begin{table}[h!]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabularx}{\textwidth}{@{}p{2.1cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Aspect} & \textbf{Normalizing Flows} & \textbf{Continuous Flows (CNF)} & \textbf{Diffusion Models} \\
+\midrule
+\textbf{Core idea}
+& Discrete invertible maps with tractable Jacobians
+& ODE-driven continuous transformations
+& Stochastic forward noise process with learned reverse \\
+\textbf{Formula}
+& $p_X(x)=p_Z(z)\cdot|\det J_{f}^{-1}(x)|$
+& $\tfrac{d}{dt}\log p(z(t)) = -\mathrm{Tr}\!\left(\partial g/\partial z\right)$
+& Forward SDE \eqref{eq:forward-sde}, reverse ODE \eqref{eq:dm-ode} \\
+\textbf{Intuition}
+& Plumbing pipes reshaping probability
+& Fluid flow of probability over time
+& Blur data into noise, then denoise backward \\
+\textbf{Advantages}
+& Exact likelihood; fast sampling; fully invertible
+& Flexible continuous dynamics; exact likelihood; principled math
+& High sample quality; scalable; flexible architectures \\
+\textbf{Weaknesses}
+& Hard to design expressive yet tractable transforms; many layers needed
+& ODE solvers can be slow; trace estimation overhead
+& Training costly; sampling often slow (many steps); likelihood approximate \\
+\bottomrule
+\end{tabularx}
+\caption{Comparison of NF, CNF, and Diffusion Models.}
+\end{table}
+
+\paragraph{Summary of the comparison.}
+\begin{itemize}[leftmargin=1.5em]
+\item Normalizing flows: exact, invertible, tractable but architecturally constrained.
+\item CNFs: continuous limit of flows, elegant math, but computationally heavy.
+\item Diffusion: stochastic sibling, with probability flow ODE making it a special case of CNFs.
+\item Recent advances (\emph{flow matching}, \emph{rectified flows}) highlight that diffusion and flows are two sides of the same coin.
+\end{itemize}
+
+\subsection{Payoff}
+
+One trained noise network, many ways to use it. The DDPM sampler is the faithful but slow reference; DDIM \eqref{eq:ddim} reuses the same network to sample twenty times faster; classifier-free guidance \eqref{eq:cfg} turns an unconditional model into a steerable one with a single scalar knob; latent diffusion moves the whole pipeline into a VAE's latent space so it fits on a laptop GPU. The assignment's sampling-step ablation (50, 200, and 1000 steps) lets you see the quality-versus-cost tradeoff in your own outputs.
+
+\paragraph{Questions to consider.}
+\begin{itemize}[leftmargin=1.5em]
+\item DDIM gets about 20$\times$ speedup over DDPM with little quality loss. Given that both use the same trained network, what does that imply about the training-time choice of $T = 1000$ steps?
+\item Classifier-free guidance with high $w$ makes samples more strongly aligned with the prompt but less diverse. What is the intuition for this tradeoff?
+\item Latent diffusion trains a VAE first, then runs diffusion in the VAE's latent space. Is the VAE ``just'' a compression module, or is the latent space doing something deeper?
+\end{itemize}
+
+% =====================================================================
+\section{Topic 4: Midpoint Evaluation of Project Methods and Progress}
+% =====================================================================
+
+This topic has no new mathematics. It closes the module with the evaluation checklist you should apply to your own course project as you prepare the Mid-Project Report, the first formal project milestone since the Proposal. The report asks you to assess honestly what you have built, present concrete evaluation results, identify gaps, and revise your plan for the second half of the term.
+
+\paragraph{Evaluating a generative model: three kinds of evidence.}
+Generative models have no single-number quality metric the way classifiers have accuracy. A credible evaluation combines the following.
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Quantitative metrics, matched to the model family.} FID for image GANs and diffusion models (lower is better; less reliable on out-of-distribution data such as medical or scientific images); Inception Score for legacy comparisons; perplexity for autoregressive language models; CLIP score for text-to-image alignment; bits per dimension for exact-likelihood models; reconstruction error for VAEs and autoencoders (useful for representation quality, less so for generative quality).
+\item \textbf{Sample diversity and mode coverage.} A model can score well on FID and still drop modes. Inspect large sample grids (100 or more samples) for repetition and missing classes; compute precision and recall for generative models (Kynk\"a\"anniemi et al., 2019; arXiv:1904.06991), where precision measures quality and recall measures coverage; compute per-class FID if labels exist.
+\item \textbf{Downstream-task evaluation.} Often the most convincing evidence: train a classifier on real plus generated data and report accuracy; use the model for imputation and measure downstream utility; use likelihood or reconstruction error as an anomaly score and report AUC.
+\item \textbf{Human evaluation.} Still the gold standard for open-ended generation (side-by-side comparisons, mean opinion scores, pairwise preferences). Expensive, but unavoidable where quantitative metrics are known to misjudge.
+\end{itemize}
+
+\paragraph{Mid-Project Report checklist.}
+The report is an 800 to 1500 word PDF with six sections in this order.
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{Title and team.} Recap from the Proposal; note any changes.
+\item \textbf{What you have built.} Data loaded, models trained (checkpoint, hyperparameters), metrics computed (which ones, on which split). Specific enough that a classmate could reproduce your runs.
+\item \textbf{Results so far.} Quantitative metrics from the list above and qualitative evidence (sample grids, learned representations, downstream plots); two to four figures or tables.
+\item \textbf{Gap analysis.} What is not yet done, what is harder than expected, which Proposal assumptions turned out to be wrong. Specific, honest gap analyses earn full credit; generic ``running into issues'' statements do not.
+\item \textbf{Revised plan for Modules 6, 7, and 8.} Explicit milestones for each remaining module, including what will be in the Module 7 Draft Report and the Module 8 Final Report.
+\item \textbf{Updated risks and mitigations.} Carry forward the Proposal risks, update them, add one or two new risks discovered during implementation, and give each a one-sentence mitigation.
+\end{enumerate}
+
+\paragraph{Tips.} Show your work: a figure beats a sentence about a figure. Be specific about what is broken (``the encoder loss plateaus around epoch 12 and the latent scatter shows two clusters instead of ten'' is a good gap-analysis sentence). If you have pivoted, say so; pivots are normal and not penalized, hidden surprises are. Match the evaluation metric to your model family and data. Reply to at least one classmate's report with a substantive comment: a methodological suggestion, a related paper, an evaluation idea, or a question about their gap analysis.
+
+% =====================================================================
+\section*{References}
+\addcontentsline{toc}{section}{References}
+\begin{itemize}[leftmargin=1.5em]
+\item D. Foster, \emph{Generative Deep Learning}, 2nd ed., O'Reilly, 2023, Chapter 8 (Diffusion Models). Companion notebook \texttt{notebooks/08\_diffusion/01\_ddm}.
+\item J. Sohl-Dickstein, E. Weiss, N. Maheswaranathan, S. Ganguli, ``Deep Unsupervised Learning using Nonequilibrium Thermodynamics,'' ICML 2015, arXiv:1503.03585.
+\item J. Ho, A. Jain, P. Abbeel, ``Denoising Diffusion Probabilistic Models,'' NeurIPS 2020, arXiv:2006.11239.
+\item Y. Song, S. Ermon, ``Generative Modeling by Estimating Gradients of the Data Distribution,'' NeurIPS 2019, arXiv:1907.05600.
+\item Y. Song, J. Sohl-Dickstein, D. P. Kingma, A. Kumar, S. Ermon, B. Poole, ``Score-Based Generative Modeling through Stochastic Differential Equations,'' ICLR 2021, arXiv:2011.13456.
+\item J. Song, C. Meng, S. Ermon, ``Denoising Diffusion Implicit Models,'' ICLR 2021, arXiv:2010.02502.
+\item A. Nichol, P. Dhariwal, ``Improved Denoising Diffusion Probabilistic Models,'' ICML 2021, arXiv:2102.09672.
+\item P. Dhariwal, A. Nichol, ``Diffusion Models Beat GANs on Image Synthesis,'' NeurIPS 2021, arXiv:2105.05233.
+\item J. Ho, T. Salimans, ``Classifier-Free Diffusion Guidance,'' NeurIPS 2021 Workshop, arXiv:2207.12598.
+\item R. Rombach, A. Blattmann, D. Lorenz, P. Esser, B. Ommer, ``High-Resolution Image Synthesis with Latent Diffusion Models,'' CVPR 2022, arXiv:2112.10752.
+\item W. Peebles, S. Xie, ``Scalable Diffusion Models with Transformers,'' ICCV 2023, arXiv:2212.09748.
+\item O. Ronneberger, P. Fischer, T. Brox, ``U-Net: Convolutional Networks for Biomedical Image Segmentation,'' MICCAI 2015, arXiv:1505.04597.
+\item L. Theis, A. van den Oord, M. Bethge, ``A Note on the Evaluation of Generative Models,'' ICLR 2016, arXiv:1511.01844.
+\item T. Kynk\"a\"anniemi, T. Karras, S. Laine, J. Lehtinen, T. Aila, ``Improved Precision and Recall Metric for Assessing Generative Models,'' NeurIPS 2019, arXiv:1904.06991.
+\item L. Weng, ``What are Diffusion Models?'', blog post, 2021 (lilianweng.github.io).
+\end{itemize}
+
+\end{document}
