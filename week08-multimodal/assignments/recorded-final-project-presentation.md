@@ -45,10 +45,10 @@ One-line replies (“great presentation!”, “nice work”) do not count towar
 
 ### Evaluation Criteria (100 points)
 
-- **20 pts**: Problem framing and motivation: clearly explains what your project addressed and why.
-- **20 pts**: Methods explanation: walks through your architecture, data, and training with diagrams.
-- **20 pts**: Results and limitations: presents the main findings clearly AND honestly covers limitations.
-- **15 pts**: Slide quality: readable fonts, one-idea-per-slide structure, citations.
-- **10 pts**: Timing, pace, and audio quality: between 12 and 15 minutes; pauses; clear audio.
-- **5 pts**: Captions or transcript present.
-- **10 pts**: Peer engagement: one substantive comment on a classmate’s presentation.
+- **20 pts:** Problem framing and motivation: clearly explains what your project addressed and why.
+- **20 pts:** Methods explanation: walks through your architecture, data, and training with diagrams.
+- **20 pts:** Results and limitations: presents the main findings clearly AND honestly covers limitations.
+- **15 pts:** Slide quality: readable fonts, one-idea-per-slide structure, citations.
+- **10 pts:** Timing, pace, and audio quality: between 12 and 15 minutes; pauses; clear audio.
+- **5 pts:** Captions or transcript present.
+- **10 pts:** Peer engagement: one substantive comment on a classmate’s presentation.

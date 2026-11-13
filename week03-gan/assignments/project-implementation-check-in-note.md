@@ -26,5 +26,5 @@ Reply to **at least one classmate’s check-in** with a substantive comment: a s
 
 ### Evaluation Criteria (25 points)
 
-- **15 pts**: Substantive initial post: covers what you have built, what is working / not working, and one concrete question or blocker.
-- **10 pts**: One substantive reply to a classmate (one-line “keep going!” replies do not count).
+- **15 pts:** Substantive initial post: covers what you have built, what is working / not working, and one concrete question or blocker.
+- **10 pts:** One substantive reply to a classmate (one-line “keep going!” replies do not count).

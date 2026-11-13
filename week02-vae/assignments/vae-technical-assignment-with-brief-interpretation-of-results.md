@@ -36,8 +36,8 @@ Fashion-MNIST trains in roughly 5 to 15 minutes on a CPU laptop. If your machine
 
 ### Evaluation Criteria (100 points)
 
-- **30 pts**: Implementation runs correctly; loss curves logged separately for total, reconstruction, and KL.
-- **25 pts**: Latent-dimension ablation: at least three values tried; results presented side-by-side with both loss curves and reconstructions.
-- **20 pts**: Prior samples shown and qualitatively discussed; latent-space scatter present and colored by class.
-- **15 pts**: Interpretation write-up: clear, specific, ties observations to ELBO terms and to the failure modes from Topics 3 and 4.
-- **10 pts**: Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.
+- **30 pts:** Implementation runs correctly; loss curves logged separately for total, reconstruction, and KL.
+- **25 pts:** Latent-dimension ablation: at least three values tried; results presented side-by-side with both loss curves and reconstructions.
+- **20 pts:** Prior samples shown and qualitatively discussed; latent-space scatter present and colored by class.
+- **15 pts:** Interpretation write-up: clear, specific, ties observations to ELBO terms and to the failure modes from Topics 3 and 4.
+- **10 pts:** Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.

@@ -41,10 +41,10 @@ Reply to **at least one classmate’s Final Project Report** with a substantive 
 
 ### Evaluation Criteria (100 points)
 
-- **20 pts**: Methods section: data, model, training, evaluation; specific and reproducibility-grade.
-- **25 pts**: Results section: quantitative and qualitative; 4 to 6 figures or tables; specific evaluation methodology.
-- **20 pts**: Discussion: judgment, surprise, comparison to prior work; the section that distinguishes a strong report from a mediocre one.
-- **10 pts**: Related work: appropriate citations; situates the project correctly.
-- **10 pts**: Limitations and future work: honest, specific accounting.
-- **10 pts**: Code and reproducibility: README explains how to reproduce; code runs end-to-end.
-- **5 pts**: Peer reply (substantive).
+- **20 pts:** Methods section: data, model, training, evaluation; specific and reproducibility-grade.
+- **25 pts:** Results section: quantitative and qualitative; 4 to 6 figures or tables; specific evaluation methodology.
+- **20 pts:** Discussion: judgment, surprise, comparison to prior work; the section that distinguishes a strong report from a mediocre one.
+- **10 pts:** Related work: appropriate citations; situates the project correctly.
+- **10 pts:** Limitations and future work: honest, specific accounting.
+- **10 pts:** Code and reproducibility: README explains how to reproduce; code runs end-to-end.
+- **5 pts:** Peer reply (substantive).

@@ -76,8 +76,8 @@ ODU Research & Cloud Computing offers **Tuesday office hours** for HPC users and
 
 Before launching your first job:
 
-- ODU RCC, [Introduction to HPC](https://wiki.hpc.odu.edu/Training/HPC-Intro), recorded 2026 workshop covering Wahab, SLURM job submission, the LMOD module system, data transfer, and resource etiquette. Workshop recordings are on Panopto and the slides are linked from the page.
-- ODU RCC, [Open OnDemand on Wahab](https://wiki.hpc.odu.edu/en/open-ondemand), the official walkthrough of the browser portal you will use for most of your course coding.
+- ODU RCC, [Introduction to HPC](https://wiki.hpc.odu.edu/Training/HPC-Intro): recorded 2026 workshop covering Wahab, SLURM job submission, the LMOD module system, data transfer, and resource etiquette. Workshop recordings are on Panopto and the slides are linked from the page.
+- ODU RCC, [Open OnDemand on Wahab](https://wiki.hpc.odu.edu/en/open-ondemand): the official walkthrough of the browser portal you will use for most of your course coding.
 - If you have never used a UNIX shell, work through Software Carpentry's [UNIX Shell lesson](http://swcarpentry.github.io/shell-novice/) (about 2 hours, free). You can also use [DeapSECURE's shorter Wahab-tailored shell tutorial](https://deapsecure.gitlab.io/deapsecure-lesson01-hpc/11-shell/).
 
 ### Consider

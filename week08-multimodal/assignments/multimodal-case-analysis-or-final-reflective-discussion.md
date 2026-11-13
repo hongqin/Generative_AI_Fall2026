@@ -53,8 +53,8 @@ Option A: 3 to 5 primary citations to the paper(s) for your chosen system. Optio
 
 ### Evaluation Criteria (100 points)
 
-- **35 pts**: Technical content: substantive, specific, evidence-backed.
-- **25 pts**: Connection to course families: ties to specific modules and concepts from M2-M8.
-- **20 pts**: Clarity and citations: well-written, well-organized, properly cited.
-- **10 pts**: Writing quality: grammar, flow, structure.
-- **10 pts**: Reflection depth (Option B) OR limitation analysis depth (Option A).
+- **35 pts:** Technical content: substantive, specific, evidence-backed.
+- **25 pts:** Connection to course families: ties to specific modules and concepts from M2-M8.
+- **20 pts:** Clarity and citations: well-written, well-organized, properly cited.
+- **10 pts:** Writing quality: grammar, flow, structure.
+- **10 pts:** Reflection depth (Option B) OR limitation analysis depth (Option A).

@@ -26,5 +26,5 @@ Reply to **at least one classmate’s methods refinement note** with a substanti
 
 ### Evaluation Criteria (25 points)
 
-- **15 pts**: Substantive initial post: covers methods refined, a concrete observation, and an open question.
-- **10 pts**: One substantive reply to a classmate (one-line replies do not count).
+- **15 pts:** Substantive initial post: covers methods refined, a concrete observation, and an open question.
+- **10 pts:** One substantive reply to a classmate (one-line replies do not count).

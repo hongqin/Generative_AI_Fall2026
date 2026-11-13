@@ -38,7 +38,7 @@ Complete the items below in roughly this order.
 3.  Read Topic 3 (Course Workflow, Submissions, Communication, and Project Expectations); this is the operational reference for the whole term.
 4.  Read Topic 4 (Introductory Computing Setup for Local or Cloud Execution); confirm or follow up on your ODU HPC access.
 5.  Record and post your **slide-based self-introduction video** (50 pts) as a reply to the Orientation and Self-Introduction Discussion. Captions required.
-6.  Post your **Setup Confirmation and Project-Interest Note** (25 pts) as a reply to that discussion: confirmation of HPC access, three primary-research-paper candidates with PDFs attached, two to three candidate course-project topics.
+6.  Post your **Setup Confirmation and Project-Interest Note** (25 pts) as a reply to the separate **Setup, Presentation, and Project-Interest Note** discussion (listed right below the Orientation discussion in this module): confirmation of HPC access, three primary-research-paper candidates with PDFs attached, two to three candidate course-project topics.
 7.  Reply to at least two classmates on the self-introduction discussion and one classmate on the setup-confirmation discussion.
 
 How each item supports the Module Learning Objectives:

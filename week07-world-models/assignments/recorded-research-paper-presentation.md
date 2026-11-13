@@ -23,16 +23,16 @@ Pick one primary research paper related to generative AI (this should be one of 
 
 1.  **Title and “why care” opener** (~1 min)
 2.  **Problem and prior work** (~2-3 min)
-3.  **The method** (~4-5 min), the longest section, with diagrams and equations
-4.  **Results** (~2-3 min), the key empirical or theoretical findings
+3.  **The method** (~4-5 min): the longest section, with diagrams and equations
+4.  **Results** (~2-3 min): the key empirical or theoretical findings
 5.  **Limitations and open questions** (~1-2 min)
 6.  **Relevance to the course or your project** (~1 min)
 
 ### Evaluation Criteria (100 points)
 
-- **25 pts**: Problem framing and motivation: clearly explains what the paper is solving and why it matters, in language a classmate from outside the sub-area can follow.
-- **25 pts**: Method explanation: walks through the technical contribution with diagrams and equations; equations are explained, not just shown.
-- **20 pts**: Results and limitations: presents the main results clearly AND covers what the paper does not do (limitations section is required, not optional).
-- **15 pts**: Slide quality: readable fonts, one-idea-per-slide structure, citations on borrowed figures.
-- **10 pts**: Timing, pace, and audio quality: between 12 and 15 minutes; pauses give the audience time to read; audio is clear.
-- **5 pts**: Captions or transcript present.
+- **25 pts:** Problem framing and motivation: clearly explains what the paper is solving and why it matters, in language a classmate from outside the sub-area can follow.
+- **25 pts:** Method explanation: walks through the technical contribution with diagrams and equations; equations are explained, not just shown.
+- **20 pts:** Results and limitations: presents the main results clearly AND covers what the paper does not do (limitations section is required, not optional).
+- **15 pts:** Slide quality: readable fonts, one-idea-per-slide structure, citations on borrowed figures.
+- **10 pts:** Timing, pace, and audio quality: between 12 and 15 minutes; pauses give the audience time to read; audio is clear.
+- **5 pts:** Captions or transcript present.

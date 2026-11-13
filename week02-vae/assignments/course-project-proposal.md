@@ -35,9 +35,9 @@ Reply to **at least two classmates’ proposals** with one substantive comment e
 
 ### Evaluation Criteria (50 points)
 
-- **12 pts**: Problem statement: clarity, motivation, and concreteness.
-- **10 pts**: Methods and data: choice justified; data source identified or a plan to find one.
-- **10 pts**: Connection to one or more model families from the course.
-- **8 pts**: Timeline and feasibility for an 8-week project.
-- **6 pts**: Peer engagement: two substantive replies (one-line “great idea” replies do not count).
-- **4 pts**: Writing, organization, references.
+- **12 pts:** Problem statement: clarity, motivation, and concreteness.
+- **10 pts:** Methods and data: choice justified; data source identified or a plan to find one.
+- **10 pts:** Connection to one or more model families from the course.
+- **8 pts:** Timeline and feasibility for an 8-week project.
+- **6 pts:** Peer engagement: two substantive replies (one-line “great idea” replies do not count).
+- **4 pts:** Writing, organization, references.

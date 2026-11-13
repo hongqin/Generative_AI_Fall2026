@@ -47,8 +47,8 @@ Option A trains in 1 to 3 hours on a CPU laptop, faster on a GPU. Option B runs 
 
 ### Evaluation Criteria (100 points)
 
-- **30 pts**: Implementation runs correctly; required artifacts produced (loss curves, generation samples, attention visualization OR fine-tuning curves, etc.).
-- **25 pts**: Decoding-strategy / temperature variation covered with comparable evidence across settings.
-- **25 pts**: Behavior diagnosis with specific evidence (attention-head interpretation, prompt-sensitivity examples, fine-tuning effect, RAG impact); applies the vocabulary from Topics 1-4.
-- **10 pts**: Reflection: ties to Module 4 LSTM (Option A) or to project planning (Option B).
-- **10 pts**: Code quality and reproducibility: random seed logged, environment notes, runs end-to-end.
+- **30 pts:** Implementation runs correctly; required artifacts produced (loss curves, generation samples, attention visualization OR fine-tuning curves, etc.).
+- **25 pts:** Decoding-strategy / temperature variation covered with comparable evidence across settings.
+- **25 pts:** Behavior diagnosis with specific evidence (attention-head interpretation, prompt-sensitivity examples, fine-tuning effect, RAG impact); applies the vocabulary from Topics 1-4.
+- **10 pts:** Reflection: ties to Module 4 LSTM (Option A) or to project planning (Option B).
+- **10 pts:** Code quality and reproducibility: random seed logged, environment notes, runs end-to-end.

@@ -901,8 +901,8 @@ A vanilla GAN has essentially no controllability: you draw $z\sim p_z$ and get w
 
 GANs are notoriously expensive to train at quality, and the cost is dominated by human attention as much as by compute:
 \begin{itemize}
-    \item The Foster \texttt{01\_dcgan} and \texttt{02\_wgan\_gp} notebooks on Fashion-MNIST run on a laptop or a CPU-only notebook session in roughly 15 to 30 minutes.
-    \item The same notebooks on CelebA faces want a GPU and a few hours.
+    \item Foster's \texttt{01\_dcgan} notebook on the LEGO bricks dataset (about 40{,}000 grayscale $64\times 64$ images) is light enough for a laptop or a CPU-only notebook session if you cut the epoch count well below Foster's 300.
+    \item The \texttt{02\_wgan\_gp} and \texttt{03\_cgan} notebooks on CelebA (about 200{,}000 RGB faces) want a GPU; expect hours per run on CPU. In these two notebooks an ``epoch'' is only one or two batches by design, so think in training steps rather than epochs.
     \item StyleGAN2 on FFHQ at $1024\times 1024$ takes weeks on multi-GPU clusters, which is not realistic for a course project.
 \end{itemize}
 WGAN-GP adds a further constant factor: every critic step backpropagates through $\nabla_{\hat x} f_w(\hat x)$, and the critic is updated $n_{\text{critic}}$ times per generator step. If a project requires a high-quality GAN, scope it around what can be trained on the university HPC cluster in a reasonable time.

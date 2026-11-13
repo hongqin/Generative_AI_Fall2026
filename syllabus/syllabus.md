@@ -74,7 +74,7 @@ The course uses four major assignment categories. Unless otherwise noted, all su
 
 **Course Learning Objectives:** CLO1, CLO2
 
-**Frequency:** Weekly in Modules 1-6. The six weekly module assignments together account for 40% of the course grade.
+**Frequency:** Modules 1-6 and 8. The seven weekly module assignments together account for 40% of the course grade.
 
 **Instructions:** Students will complete the assigned technical task for the module, such as running and modifying a notebook, explaining model behavior, comparing methods, or responding to a guided discussion prompt. Students should use the posted lecture materials and starter resources, document what they tried, and interpret their results rather than only submitting raw output.
 
@@ -144,18 +144,18 @@ In this course, students are encouraged to use generative AI tools responsibly a
 
 ## Course Schedule
 
-Each module is one week long. All assignments are due at the end of the module week unless otherwise noted in Canvas.
+Each module is one week long, and the course runs for eight modules. Unless otherwise noted, all work for a module is due by 11:59 p.m. ET on the last day of that module. Exact calendar due dates for the current term are posted in Canvas. When the session includes a university holiday or break, due dates are adjusted so that nothing is due during the break.
 
-| Week | Topics | Weekly assignment | Course project track |
-|---|---|---|---|
-| Week 1 | Overview, course launch, generative AI landscape, tools and setup | Orientation quiz, self-introduction discussion, setup confirmation | Identify project domain, background, and possible data sources |
-| Week 2 | VAE: explain, implement, evaluate | VAE technical assignment and reflection | Submit project proposal with problem statement, methods, and references |
-| Week 3 | GAN: explain, implement, evaluate | GAN coding exercise and discussion | Build or refine baseline implementation |
-| Week 4 | Autoregressive models: explain, implement, evaluate | Autoregressive or LSTM mini-lab and comparison memo | Continue implementation and prepare initial results |
-| Week 5 | Diffusion models: explain, implement, evaluate | Diffusion assignment and analysis of model outputs | Submit mid-project report with testing, feedback, and next steps |
-| Week 6 | Transformer: explain, implement, evaluate | Transformer or LLM workflow assignment | Refine experiments and evaluate project progress |
-| Week 7 | World model: explain, implement, evaluate | World-model analysis plus recorded research paper presentation | Submit draft report or progress report |
-| Week 8 | Multimodal models: explain, implement, evaluate | Multimodal case analysis, final project report, final recorded project presentation | Complete final deliverables and archive materials |
+| Week | Days | Topics | Weekly assignment | Course project track | Due |
+|---|---|---|---|---|---|
+| Week 1 | Days 1-7 | Overview, course launch, generative AI landscape, tools and setup | Orientation and self-introduction video discussion, setup confirmation | Identify project domain, background, and possible data sources | End of Module 1 |
+| Week 2 | Days 8-14 | VAE: explain, implement, evaluate | VAE technical assignment and reflection | Submit project proposal with problem statement, methods, and references | End of Module 2 |
+| Week 3 | Days 15-21 | GAN: explain, implement, evaluate | GAN coding exercise and discussion | Build or refine baseline implementation | End of Module 3 |
+| Week 4 | Days 22-28 | Autoregressive models: explain, implement, evaluate | Autoregressive or LSTM mini-lab and comparison memo | Continue implementation and prepare initial results | End of Module 4 |
+| Week 5 | Days 29-35 | Diffusion models: explain, implement, evaluate | Diffusion assignment and analysis of model outputs | Submit mid-project report with testing, feedback, and next steps | End of Module 5 |
+| Week 6 | Days 36-42 | Transformer: explain, implement, evaluate | Transformer or LLM workflow assignment | Refine experiments and evaluate project progress | End of Module 6 |
+| Week 7 | Days 43-49 | World model: explain, implement, evaluate | Recorded research paper presentation | Submit draft report or progress report | End of Module 7 |
+| Week 8 | Days 50-56 | Multimodal models: explain, implement, evaluate | Multimodal case analysis, final project report, final recorded project presentation | Complete final deliverables and archive materials | End of Module 8 |
 
 ## Weekly Modules
 
@@ -197,7 +197,7 @@ After completing this module, you will be able to:
 
 ### Assignments
 
-- Orientation quiz and self-introduction discussion
+- Orientation and self-introduction video discussion
 
 - Setup confirmation and short project-interest note
 

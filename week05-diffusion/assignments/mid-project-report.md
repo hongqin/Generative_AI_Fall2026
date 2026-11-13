@@ -38,10 +38,10 @@ Reply to **at least one classmate’s Mid-Project Report** with a substantive co
 
 ### Evaluation Criteria (100 points)
 
-- **20 pts**: What you have built: concrete, specific, with reproducibility-grade detail.
-- **25 pts**: Results so far: quantitative metrics + qualitative evidence; 2 to 4 figures or tables.
-- **20 pts**: Gap analysis: honest, specific, ties to particular experiments not generic difficulties.
-- **15 pts**: Revised plan: realistic, mapped to specific milestones in Modules 6, 7, 8.
-- **10 pts**: Updated risks and mitigations.
-- **5 pts**: Peer reply (substantive).
-- **5 pts**: Writing, organization, figures.
+- **20 pts:** What you have built: concrete, specific, with reproducibility-grade detail.
+- **25 pts:** Results so far: quantitative metrics + qualitative evidence; 2 to 4 figures or tables.
+- **20 pts:** Gap analysis: honest, specific, ties to particular experiments not generic difficulties.
+- **15 pts:** Revised plan: realistic, mapped to specific milestones in Modules 6, 7, 8.
+- **10 pts:** Updated risks and mitigations.
+- **5 pts:** Peer reply (substantive).
+- **5 pts:** Writing, organization, figures.

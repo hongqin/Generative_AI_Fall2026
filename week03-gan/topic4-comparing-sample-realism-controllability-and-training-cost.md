@@ -33,8 +33,8 @@ A vanilla GAN has essentially no controllability. You draw $`z \sim p_z`$ and ge
 
 GANs are notoriously expensive to train at quality, especially the modern variants:
 
-- The Foster `01_dcgan` and `02_wgan_gp` notebooks on Fashion-MNIST run on a laptop or in a CPU-only Open OnDemand JupyterLab session in 15 to 30 minutes.
-- The same notebooks on CelebA (faces) want a GPU and a few hours.
+- Foster’s `01_dcgan` notebook on the LEGO bricks dataset (about 40,000 grayscale 64x64 images) is light enough for a CPU laptop or a CPU-only Open OnDemand JupyterLab session if you cut the epoch count; on a GPU it is a matter of minutes per epoch.
+- The `02_wgan_gp` and `03_cgan` notebooks on CelebA (about 200,000 RGB faces) want a GPU; expect hours per run on CPU.
 - StyleGAN2 on FFHQ at 1024x1024 takes **weeks** on multi-GPU clusters. Not realistic for a course project.
 
 If your project requires a high-quality GAN, plan your scope around what you can train on Wahab in a reasonable time. Module 1 Topic 4 has the compute guidance.

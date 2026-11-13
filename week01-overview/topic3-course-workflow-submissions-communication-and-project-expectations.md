@@ -24,7 +24,7 @@ The table below is the recommended due dates only. Every module remains accessib
 
 | Week | Module | Weekly Technical Activity | Project-Track Deliverable |
 |----|----|----|----|
-| 1 | Overview and Course Launch | Orientation Quiz and Self-Introduction Discussion | Setup Confirmation and Project-Interest Note |
+| 1 | Overview and Course Launch | Orientation and Self-Introduction Video Discussion | Setup Confirmation and Project-Interest Note |
 | 2 | Variational Autoencoders (VAE) | VAE Technical Assignment | **Course Project Proposal** (formal milestone) |
 | 3 | Generative Adversarial Networks (GAN) | GAN Coding Exercise | Project Implementation Check-in |
 | 4 | Autoregressive Models | Autoregressive or LSTM Mini-Lab | Project Progress Update |
@@ -126,9 +126,9 @@ The syllabus rubric weights project scope, technical soundness, evidence of prog
 
 For background and the full policy text, also read:
 
-- Course Syllabus, full grading breakdown, late-work policy, ODU policies, and the complete week-by-week table.
-- Meet Your Instructor, contact, Student Hours, full AI-use expectation, work-expectations paragraph.
-- Course Objectives and Materials; CLOs, required and supplemental texts, software and accounts.
+- Course Syllabus: full grading breakdown, late-work policy, ODU policies, and the complete week-by-week table.
+- Meet Your Instructor: contact, Student Hours, full AI-use expectation, work-expectations paragraph.
+- Course Objectives and Materials: CLOs, required and supplemental texts, software and accounts.
 
 ### Consider
 
@@ -140,8 +140,8 @@ Before you move on to the Module 1 activities, take a minute to reflect:
 
 ### Resources
 
-- All Modules, jump to any module at any time; everything is open.
-- All Discussions, the project-track threads and the Q&A Café live here.
-- Announcements, check at least twice a week.
-- Grades, weighted by group: Weekly Technical 40%, Paper Presentation 10%, Course Project 40%, Course Project Presentation 10%.
-- Canvas Inbox, preferred channel for individual instructor contact.
+- All Modules: jump to any module at any time; everything is open.
+- All Discussions: the project-track threads and the Q&A Café live here.
+- Announcements: check at least twice a week.
+- Grades: weighted by group: Weekly Technical 40%, Paper Presentation 10%, Course Project 40%, Course Project Presentation 10%.
+- Canvas Inbox: preferred channel for individual instructor contact.

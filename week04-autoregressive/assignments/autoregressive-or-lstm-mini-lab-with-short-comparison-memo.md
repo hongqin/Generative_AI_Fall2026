@@ -10,9 +10,9 @@ This is the Module 4 weekly technical assignment. You will train one autoregress
 
 **Pick one** of the three Foster Chapter 5 notebooks below as your starter. Each is self-contained; choose based on the data type that feels most relevant for your project direction.
 
-- **Option A: LSTM text generation**: [notebooks/05_autoregressive/01_lstm](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/01_lstm). Foster’s LSTM trained on a small text corpus; sample with different temperatures.
-- **Option B: PixelCNN image generation**: [notebooks/05_autoregressive/02_pixelcnn](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/02_pixelcnn). Autoregressive over Fashion-MNIST pixels in raster-scan order.
-- **Option C: PixelCNN with Mixture Density**: [notebooks/05_autoregressive/03_pixelcnn_md](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/03_pixelcnn_md). Same task as Option B but with a mixture-density output that gives richer per-pixel distributions; compare to plain PixelCNN.
+- **Option A: LSTM text generation** ([notebooks/05_autoregressive/01_lstm](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/01_lstm)). Foster’s LSTM trained on a small text corpus; sample with different temperatures.
+- **Option B: PixelCNN image generation** ([notebooks/05_autoregressive/02_pixelcnn](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/02_pixelcnn)). Autoregressive over Fashion-MNIST pixels in raster-scan order.
+- **Option C: PixelCNN with Mixture Density** ([notebooks/05_autoregressive/03_pixelcnn_md](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/05_autoregressive/03_pixelcnn_md)). Same task as Option B but with a mixture-density output that gives richer per-pixel distributions; compare to plain PixelCNN.
 
 #### Required experiments (for whichever option you chose)
 
@@ -40,8 +40,8 @@ The LSTM and PixelCNN notebooks train in roughly 30 to 90 minutes on a CPU lapto
 
 ### Evaluation Criteria (100 points)
 
-- **30 pts**: Implementation runs correctly; training loss logged and plotted.
-- **25 pts**: Samples present and qualitatively discussed (for text: across at least three temperatures; for image: a clear sample grid).
-- **25 pts**: Behavior diagnosis with specific evidence; correctly applies the vocabulary from Topics 1-4.
-- **10 pts**: Reflection on the other two options: predictions grounded in the architectural differences from Topics 1-3.
-- **10 pts**: Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.
+- **30 pts:** Implementation runs correctly; training loss logged and plotted.
+- **25 pts:** Samples present and qualitatively discussed (for text: across at least three temperatures; for image: a clear sample grid).
+- **25 pts:** Behavior diagnosis with specific evidence; correctly applies the vocabulary from Topics 1-4.
+- **10 pts:** Reflection on the other two options: predictions grounded in the architectural differences from Topics 1-3.
+- **10 pts:** Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.

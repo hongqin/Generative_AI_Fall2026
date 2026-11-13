@@ -23,7 +23,7 @@ The vanilla GAN has no knobs at inference: you draw a random $`z`$ and get whate
 \min_\theta\, \max_\phi\; \mathbb{E}_{(x, y) \sim p_{\text{data}}}\!\left[\log D_\phi(x, y)\right] \;+\; \mathbb{E}_{z \sim p_z,\, y \sim p_y}\!\left[\log\!\left(1 - D_\phi\!\left(G_\theta(z, y), y\right)\right)\right].
 ```
 
-For class-conditional image generation, $`y`$ is a one-hot class label that is concatenated to the noise vector $`z`$ (and to the intermediate feature maps of the discriminator). At inference, you choose $`y`$ to pick the class you want. Foster’s `03_cgan` notebook implements this for Fashion-MNIST.
+For class-conditional image generation, $`y`$ is a one-hot class label that is concatenated to the noise vector $`z`$ (and to the intermediate feature maps of the discriminator). At inference, you choose $`y`$ to pick the class you want. Foster’s `03_cgan` notebook implements this on CelebA faces, conditioning on a single binary attribute (`Blond_Hair`), so $`y`$ has two classes.
 
 The conditioning variable does not have to be a class label. It can be text (an early text-to-image GAN), a sketch, another image (Pix2Pix, CycleGAN), a segmentation map, or any structured side information. The architectural pattern is the same: inject $`y`$ into both networks.
 

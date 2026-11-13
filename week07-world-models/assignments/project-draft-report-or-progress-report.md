@@ -38,9 +38,9 @@ Reply to **at least one classmate’s Draft Report** with a substantive comment:
 
 ### Evaluation Criteria (50 points)
 
-- **12 pts**: Current results: quantitative + qualitative; 2 to 3 figures or tables.
-- **10 pts**: Progress vs Mid-Project plan: honest, specific accounting.
-- **10 pts**: Gap analysis: ties to particular experiments not generic difficulties.
-- **8 pts**: Plan for Module 8: explicit, realistic for the remaining time, lists final-deliverable contents.
-- **5 pts**: Peer reply (substantive).
-- **5 pts**: Writing, organization, figures.
+- **12 pts:** Current results: quantitative + qualitative; 2 to 3 figures or tables.
+- **10 pts:** Progress vs Mid-Project plan: honest, specific accounting.
+- **10 pts:** Gap analysis: ties to particular experiments not generic difficulties.
+- **8 pts:** Plan for Module 8: explicit, realistic for the remaining time, lists final-deliverable contents.
+- **5 pts:** Peer reply (substantive).
+- **5 pts:** Writing, organization, figures.

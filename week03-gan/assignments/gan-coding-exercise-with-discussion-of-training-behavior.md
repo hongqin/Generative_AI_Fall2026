@@ -8,11 +8,11 @@ This is the Module 3 weekly technical assignment. You will train one GAN from Fo
 
 ### Task
 
-**Pick one** of the three Foster Chapter 4 notebooks below as your starter. Each notebook is self-contained and runs on Fashion-MNIST. Choose based on what is most interesting for your project direction; none is meant to be harder than the others.
+**Pick one** of the three Foster Chapter 4 notebooks below as your starter. Each notebook is self-contained and ships with its own dataset from Foster’s repository: the DCGAN notebook uses the **LEGO bricks** images (grayscale, 64x64), and the WGAN-GP and Conditional GAN notebooks use **CelebA faces** (RGB, 64x64). Use the dataset the notebook is built for. Both are fetched with the repository’s Kaggle helper (`bash scripts/download.sh bricks` or `bash scripts/download.sh faces`), which needs a free Kaggle account and API token; the repository README explains the setup. If you are not using Foster’s Docker setup, download the same Kaggle datasets by hand and point the `image_dataset_from_directory` path at your copy (Option C also needs `list_attr_celeba.csv` from the same CelebA download). Choose based on what is most interesting for your project direction; none is meant to be harder than the others.
 
-- **Option A: DCGAN**: [notebooks/04_gan/01_dcgan](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/01_dcgan). The canonical convolutional GAN; uses the original JS-divergence-style loss with the non-saturating generator trick.
-- **Option B: WGAN-GP**: [notebooks/04_gan/02_wgan_gp](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/02_wgan_gp). The Wasserstein-GAN-with-gradient-penalty fix; uses a critic and trains the critic multiple times per generator update.
-- **Option C: Conditional GAN**: [notebooks/04_gan/03_cgan](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/03_cgan). Adds a class-label conditioning input so you can ask the generator for a specific Fashion-MNIST class.
+- **Option A: DCGAN** ([notebooks/04_gan/01_dcgan](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/01_dcgan)). The canonical convolutional GAN; uses the original JS-divergence-style loss with the non-saturating generator trick.
+- **Option B: WGAN-GP** ([notebooks/04_gan/02_wgan_gp](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/02_wgan_gp)). The Wasserstein-GAN-with-gradient-penalty fix; uses a critic and trains the critic multiple times per generator update.
+- **Option C: Conditional GAN** ([notebooks/04_gan/03_cgan](https://github.com/davidADSP/Generative_Deep_Learning_2nd_Edition/tree/main/notebooks/04_gan/03_cgan)). Adds a class-label conditioning input so you can ask the generator for a specific class. Foster’s notebook conditions on the CelebA `Blond_Hair` attribute, so there are two classes.
 
 #### Required experiments (for whichever option you chose)
 
@@ -34,12 +34,12 @@ Cite Foster correctly in your write-up: *David Foster, Generative Deep Learning 
 
 #### Compute
 
-All three notebooks train in about 30 to 60 minutes on a CPU laptop for Fashion-MNIST; significantly faster on a GPU. If your machine struggles or you want to scale to a larger dataset, run on Wahab via Open OnDemand JupyterLab (see Module 1 Topic 4 for setup).
+The bricks dataset (about 40,000 small grayscale images) is the lighter option and should be workable on a CPU laptop if you cut `EPOCHS` well below Foster’s 300. The CelebA notebooks (about 200,000 RGB faces) want a GPU: Wahab via Open OnDemand JupyterLab (see Module 1 Topic 4), a personal GPU, or Google Colab; on CPU alone, expect a very long run. Note that in the WGAN-GP and Conditional GAN notebooks an “epoch” is only one or two batches by design (`steps_per_epoch`), so think in training steps rather than epochs. You do not need to match Foster’s run length; train long enough to see the loss curves and sample quality evolve, and report the number of steps or epochs, the batch size, and the hardware. If Kaggle access or compute is a real obstacle, you may substitute Fashion-MNIST for Option A or B (load it with `tf.keras.datasets.fashion_mnist`, build a `tf.data` pipeline, resize to 64x64, and keep `CHANNELS = 1`); Option C depends on the CelebA attribute labels, so keep CelebA there. Say so in your write-up if you substitute. Either dataset choice is graded the same way.
 
 ### Evaluation Criteria (100 points)
 
-- **30 pts**: Implementation runs correctly; generator and discriminator (or critic) losses logged separately and plotted.
-- **25 pts**: Sample grid present and discussed qualitatively (with attention to mode coverage and sharpness).
-- **25 pts**: Failure-mode diagnosis with specific evidence; correctly applies the vocabulary from Topic 2.
-- **10 pts**: Reflection on the other two options: predictions grounded in the architectural differences from Topics 1 through 3.
-- **10 pts**: Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.
+- **30 pts:** Implementation runs correctly; generator and discriminator (or critic) losses logged separately and plotted.
+- **25 pts:** Sample grid present and discussed qualitatively (with attention to mode coverage and sharpness).
+- **25 pts:** Failure-mode diagnosis with specific evidence; correctly applies the vocabulary from Topic 2.
+- **10 pts:** Reflection on the other two options: predictions grounded in the architectural differences from Topics 1 through 3.
+- **10 pts:** Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.

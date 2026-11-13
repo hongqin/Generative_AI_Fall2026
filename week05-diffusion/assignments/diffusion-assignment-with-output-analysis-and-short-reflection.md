@@ -36,8 +36,8 @@ Diffusion training is slower than VAE or GAN training because the forward pass i
 
 ### Evaluation Criteria (100 points)
 
-- **30 pts**: Implementation runs correctly; training loss logged and plotted.
-- **25 pts**: Default sample grid present and qualitatively discussed.
-- **25 pts**: Sampling-step ablation: three settings tried, sample grids and wall-clock costs reported, quality-versus-cost tradeoff discussed.
-- **10 pts**: Comparison paragraph: diffusion vs VAE vs GAN samples on the same data type; references your earlier assignments.
-- **10 pts**: Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.
+- **30 pts:** Implementation runs correctly; training loss logged and plotted.
+- **25 pts:** Default sample grid present and qualitatively discussed.
+- **25 pts:** Sampling-step ablation: three settings tried, sample grids and wall-clock costs reported, quality-versus-cost tradeoff discussed.
+- **10 pts:** Comparison paragraph: diffusion vs VAE vs GAN samples on the same data type; references your earlier assignments.
+- **10 pts:** Code quality and reproducibility: random seed logged, environment notes present, code runs end-to-end.

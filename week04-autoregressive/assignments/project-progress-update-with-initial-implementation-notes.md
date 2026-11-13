@@ -26,5 +26,5 @@ Reply to **at least one classmate’s progress update** with a substantive comme
 
 ### Evaluation Criteria (25 points)
 
-- **15 pts**: Substantive initial post: covers where your implementation stands, what is or is not working, and a concrete next step.
-- **10 pts**: One substantive reply to a classmate (one-line “keep going!” replies do not count).
+- **15 pts:** Substantive initial post: covers where your implementation stands, what is or is not working, and a concrete next step.
+- **10 pts:** One substantive reply to a classmate (one-line “keep going!” replies do not count).

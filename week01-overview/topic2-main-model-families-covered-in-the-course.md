@@ -15,7 +15,7 @@ Foster also draws the contrast with **discriminative modeling**: a discriminativ
 
 ### The model families, in course order
 
-#### 1. Variational Autoencoders (VAEs); Module 2
+#### 1. Variational Autoencoders (VAEs): Module 2
 
 VAEs introduce a latent variable $`z`$ with a simple prior $`p(z)`$ and decompose the data density as
 
@@ -25,7 +25,7 @@ p_\theta(x) \;=\; \int p_\theta(x \mid z)\, p(z) \, dz.
 
 Because that integral is intractable, training uses an approximate posterior $`q_\phi(z \mid x)`$ and the evidence lower bound (ELBO). Foster develops the encoder, decoder, loss function, and a face-generation example in **Chapter 3, “Variational Autoencoders.”** The original method is Kingma and Welling (2014).
 
-#### 2. Generative Adversarial Networks (GANs); Module 3
+#### 2. Generative Adversarial Networks (GANs): Module 3
 
 A GAN trains a generator $`G`$ and a discriminator $`D`$ in a two-player minimax game:
 
@@ -35,7 +35,7 @@ A GAN trains a generator $`G`$ and a discriminator $`D`$ in a two-player minimax
 
 Foster covers vanilla GANs, common failure modes (oscillating loss, mode collapse), and stabilized variants (Wasserstein GAN, WGAN-GP) in **Chapter 4, “Generative Adversarial Networks.”** Style-transfer and image-to-image variants (CycleGAN, neural style transfer) appear in **Chapter 5, “Paint.”** Advanced architectures (ProGAN, SAGAN, BigGAN, StyleGAN) are surveyed in **Chapter 9, “The Future of Generative Modeling.”** The original GAN paper is Goodfellow et al. (2014).
 
-#### 3. Autoregressive Models (RNN, LSTM, sequence models); Module 4
+#### 3. Autoregressive Models (RNN, LSTM, sequence models): Module 4
 
 Autoregressive models factor the joint density along an ordering of the dimensions,
 
@@ -43,7 +43,7 @@ Autoregressive models factor the joint density along an ordering of the dimensio
 
 and learn each conditional with a neural network. Foster treats RNN and LSTM-based sequence generation in **Chapter 6, “Write,”** introducing tokenization, embeddings, the LSTM cell, and encoder–decoder models. **Chapter 7, “Compose,”** extends the same ideas to music with attention. Large modern autoregressive models (GPT-style language models) use a transformer backbone over the same product-of-conditionals factorization.
 
-#### 4. Normalizing Flows, covered briefly in this course
+#### 4. Normalizing Flows: covered briefly in this course
 
 Normalizing flows parameterize an invertible map $`x = f_\theta(z)`$ and use the change-of-variables formula for an *exact* tractable likelihood:
 
@@ -51,7 +51,7 @@ Normalizing flows parameterize an invertible map $`x = f_\theta(z)`$ and use the
 
 Foster’s 1st edition does not have a dedicated chapter on flows; the family is introduced in this course alongside other latent-variable methods for completeness. Primary papers: Dinh et al. (NICE, 2014; Real NVP, 2016); Kingma and Dhariwal (Glow, 2018).
 
-#### 5. Energy-Based Models (EBMs), covered briefly in this course
+#### 5. Energy-Based Models (EBMs): covered briefly in this course
 
 EBMs specify an unnormalized density
 
@@ -61,7 +61,7 @@ p_\theta(x) \;=\; \frac{\exp(-E_\theta(x))}{Z(\theta)}, \qquad Z(\theta) \;=\; \
 
 where the partition function $`Z(\theta)`$ is generally intractable. Training relies on contrastive divergence, score matching, or Langevin sampling. Foster’s 1st edition does not have a dedicated EBM chapter; the family is included in the course because it is the conceptual bridge to score-based diffusion.
 
-#### 6. Diffusion Models; Module 5
+#### 6. Diffusion Models: Module 5
 
 Diffusion models define a fixed forward Markov chain that gradually adds Gaussian noise to data, and learn the reverse denoising chain:
 
@@ -71,7 +71,7 @@ q(x_t \mid x_{t-1}) \;=\; \mathcal{N}\!\left(x_t;\, \sqrt{1-\beta_t}\, x_{t-1},\
 
 Foster’s 1st edition predates the modern diffusion boom and does not cover this family in depth. Primary papers we will read: Ho, Jain, and Abbeel, “Denoising Diffusion Probabilistic Models” (NeurIPS 2020), and Song et al., “Score-Based Generative Modeling through Stochastic Differential Equations” (ICLR 2021). Diffusion now underlies state-of-the-art image, video, and audio generation.
 
-#### 7. Transformers and Large Generative Models; Module 6
+#### 7. Transformers and Large Generative Models: Module 6
 
 The transformer (Vaswani et al., 2017) replaces recurrence with self-attention,
 
@@ -81,11 +81,11 @@ The transformer (Vaswani et al., 2017) replaces recurrence with self-attention,
 
 It is not a separate generative family but an architectural backbone now used inside most large generative models (autoregressive LLMs, diffusion U-Nets, multimodal systems). Foster introduces transformers, BERT, and GPT-2 in **Chapter 9, “The Future of Generative Modeling,”** with sections on positional encoding, multi-head attention, and the decoder.
 
-#### 8. World Models; Module 7
+#### 8. World Models: Module 7
 
 A world model learns a compact predictive model of an environment so that an agent can plan or train inside its own “imagined” rollouts rather than in the real world. Foster builds Ha and Schmidhuber’s car-racing world model end-to-end in **Chapter 8, “Play,”** using a VAE to encode observations, a mixture-density RNN (MDN-RNN) to predict the next latent state, and a small controller trained with CMA-ES. This is the chapter that most directly couples generative modeling with reinforcement learning.
 
-#### 9. Multimodal Models; Module 8
+#### 9. Multimodal Models: Module 8
 
 Multimodal generative systems learn joint or aligned representations across modalities (typically text + image, but also audio, video, and code). CLIP (Radford et al., 2021) is the canonical contrastively trained text–image model; modern systems combine such joint representations with diffusion or autoregressive decoders to produce captioned images, text-conditioned video, and grounded reasoning. Foster’s 1st edition does not have a dedicated multimodal chapter; the course reads primary papers in this module.
 
