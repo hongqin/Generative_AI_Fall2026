@@ -270,7 +270,7 @@ Sampling proceeds from pure noise $\mathbf{x}_T \sim \mathcal{N}(\mathbf{0}, \ma
   \item Sample $\mathbf{x}_{t-1} = \mu_\theta(\mathbf{x}_t, t) + \sigma_t \mathbf{z}$.
 \end{enumerate}
 
-This is stochastic (each step injects fresh noise $\mathbf{z}$) and follows the variational training derivation exactly. With $T = 1000$, generating one sample requires 1000 forward passes through the U-Net. For Fashion-MNIST on a CPU this is a couple of minutes per sample; for a $512\times512$ image on a GPU, a minute or two per sample. Slow. The notebook's \texttt{reverse\_diffusion} loop implements this iteration with a user-chosen number of \texttt{diffusion\_steps}, which is what the assignment's sampling-step ablation varies.
+This is stochastic (each step injects fresh noise $\mathbf{z}$) and follows the variational training derivation exactly. With $T = 1000$, generating one sample requires 1000 forward passes through the U-Net. For small images on a CPU this is a couple of minutes per sample; for a $512\times512$ image on a GPU, a minute or two per sample. Slow. Foster's notebook does not use this stochastic update; its \texttt{reverse\_diffusion} loop uses the deterministic DDIM-style update of the next subsection, with a user-chosen number of \texttt{diffusion\_steps}.
 
 \subsection{DDIM sampling: fast and deterministic}
 
@@ -284,6 +284,8 @@ Practically: it predicts $\hat{\mathbf{x}}_0$ from $\mathbf{x}_t$ using the nois
 \begin{remark}
 DDIM and DDPM are two ends of a family of samplers with a tunable stochasticity parameter; equation \eqref{eq:ddim} is the fully deterministic end. In the continuous-time view of Topic 2 it is a discretization of the \emph{probability flow ODE}, which is the link to normalizing flows discussed below.
 \end{remark}
+
+\paragraph{How Foster's notebook samples.} Foster's Chapter 8 model is trained with continuous noise levels (an offset cosine schedule) rather than a fixed grid of $T = 1000$ timesteps, and its \texttt{reverse\_diffusion} function uses the deterministic DDIM-style update \eqref{eq:ddim}. The number of sampling steps is therefore a free choice at sampling time: the 50-, 200-, and 1000-step runs in the assignment all use the same deterministic sampler, and only the step count changes. A 1000-step run in that notebook is DDIM with 1000 steps, not stochastic DDPM sampling.
 
 \subsection{Conditioning and classifier-free guidance}
 

@@ -12,7 +12,7 @@ Given a trained $`\epsilon_\theta`$, DDPM sampling is straightforward:
 2.  For $`t = T, T-1, \dots, 1`$: compute the predicted mean $`\mu_\theta(x_t, t)`$ from $`\epsilon_\theta(x_t, t)`$, draw $`z \sim \mathcal{N}(0, I)`$, and set $`x_{t-1} = \mu_\theta(x_t, t) + \sigma_t\, z`$ where $`\sigma_t`$ follows the fixed-variance schedule.
 3.  Return $`x_0`$.
 
-This is stochastic (each step adds new noise $`z`$) and follows the variational training derivation exactly. With $`T = 1000`$, generating one sample requires 1000 forward passes through the network. For Fashion-MNIST on a CPU this is a couple of minutes per sample; for a 512×512 image on a GPU, a minute or two per sample. Slow.
+This is stochastic (each step adds new noise $`z`$) and follows the variational training derivation exactly. With $`T = 1000`$, generating one sample requires 1000 forward passes through the network. For small images on a CPU this is a couple of minutes per sample; for a 512×512 image on a GPU, a minute or two per sample. Slow.
 
 ### DDIM sampling: fast and deterministic
 
@@ -23,6 +23,8 @@ x_{t-1} \;=\; \sqrt{\bar\alpha_{t-1}}\, \underbrace{\left(\frac{x_t - \sqrt{1 - 
 ```
 
 This is the DDIM update. Practically: it predicts $`x_0`$ from $`x_t`$ using the noise network, then re-noises it to the previous timestep. The whole update is deterministic. The breakthrough is that you can use a *subset* of the original timesteps (e.g., 50 steps spaced through the original 1000) and get qualitatively similar samples to full DDPM. **20x speedup with little quality loss**; the standard choice for production diffusion sampling.
+
+**How Foster’s notebook samples.** Foster’s Chapter 8 model is trained with continuous noise levels (an offset cosine schedule) rather than a fixed grid of $`T = 1000`$ timesteps, and its `reverse_diffusion` function uses the deterministic DDIM-style update above. The number of sampling steps is therefore a free choice at sampling time: your 50-, 200-, and 1000-step runs in the assignment all use the same deterministic sampler, and only the step count changes. A 1000-step run in that notebook is DDIM with 1000 steps, not stochastic DDPM sampling.
 
 ### Conditioning: text-to-image, class-to-image, image-to-image
 
